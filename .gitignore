@@ -1,0 +1,84 @@
+# General
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Node / Frontend
+node_modules/
+dist/
+coverage/
+.npm/
+.yarn/
+.pnpm-store/
+
+# Build outputs
+build/
+public/build/
+lib/
+bin/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# Java / Maven
+.target/
+target/
+.mvn/wrapper/maven-wrapper.jar
+.settings/
+.classpath
+.project
+
+# Gradle
+.gradle/
+build/
+
+# IDE / Editor
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.code-workspace
+
+# Python (if any scripts/notebooks)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+
+# C++ build artifacts
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+Makefile
+
+# Logs & temp
+logs/
+*.out
+*.err
+
+# Project specific
+rvo/source/*/simulation_raw.json
+rvo/source/*/result*.rvo
+rvo/source/*/result-json.rvo
+rvo/source/*/progress.txt
+rvo/source/*/cpp_error.log
+rvo/source/*/output.json
+rvo/source/*/frame.json
+rvo/source/*/replayData.json
+rvo/source/*/replayData.txt
+rvo/source/*/statistic/

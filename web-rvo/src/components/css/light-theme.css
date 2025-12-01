@@ -1,0 +1,384 @@
+@charset "utf-8";
+/* 浅色主题样式 */
+
+/* 系统头部样式 */
+.system-header {
+    color: #2c3e50;
+    font-size: 28px;
+    font-weight: 600;
+    border-top: 3px solid #3498db;
+    border-bottom: 3px solid #3498db;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    text-align: center;
+    height: 80px;
+    line-height: 82px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin: 0;
+    padding: 0;
+}
+
+/* 主容器样式 */
+.main-container {
+    background: linear-gradient(135deg, #e3f2fd 0%, #e8f5e8 50%, #e8f5e8 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* 控制面板样式 */
+.control-panel {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+    border-radius: 16px;
+    padding: 25px;
+    margin: 20px auto;
+    max-width: 1200px;
+    box-shadow: 0 8px 32px rgba(33, 150, 243, 0.15);
+    border: 2px solid #e1f5fe;
+    position: relative;
+    overflow: hidden;
+}
+
+.control-panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #2196f3, #ff9800, #4caf50);
+}
+
+/* 按钮样式 */
+.el-button {
+    border-radius: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.el-button--primary {
+    background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+    color: #ffffff;
+    border: 2px solid #1976d2;
+}
+
+.el-button--primary:hover {
+    background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(33, 150, 243, 0.4);
+    border-color: #1565c0;
+}
+
+.el-button--success {
+    background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+    color: #ffffff;
+    border: 2px solid #388e3c;
+}
+
+.el-button--success:hover {
+    background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+    border-color: #2e7d32;
+}
+
+.el-button--warning {
+    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+    color: #ffffff;
+    border: 2px solid #f57c00;
+}
+
+.el-button--warning:hover {
+    background: linear-gradient(135deg, #f57c00 0%, #ef6c00 100%);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(255, 152, 0, 0.4);
+    border-color: #ef6c00;
+}
+
+.el-button--danger {
+    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+    color: #ffffff;
+    border: 2px solid #d32f2f;
+}
+
+.el-button--danger:hover {
+    background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(244, 67, 54, 0.4);
+    border-color: #c62828;
+}
+
+/* 创建项目按钮特殊样式 */
+.create-project-btn {
+    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+    color: #ffffff;
+    border: 2px solid #f57c00;
+    font-size: 16px;
+    padding: 12px 24px;
+    border-radius: 16px;
+}
+
+.create-project-btn:hover {
+    background: linear-gradient(135deg, #f57c00 0%, #ef6c00 100%);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(255, 152, 0, 0.4);
+    border-color: #ef6c00;
+}
+
+/* 表格样式 */
+.custom-table {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(33, 150, 243, 0.2);
+    border: 2px solid #bbdefb;
+    background: #ffffff;
+    margin: 20px 0;
+}
+
+.custom-table .el-table__header {
+    background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+}
+
+.custom-table .el-table__header th {
+    background: transparent;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 16px;
+    border-color: #0d47a1;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    padding: 16px 8px;
+}
+
+.custom-table .el-table__body tr:nth-child(even) {
+    background-color: #e3f2fd;
+    transition: all 0.3s ease;
+}
+
+.custom-table .el-table__body tr:nth-child(odd) {
+    background-color: #fff3e0;
+    transition: all 0.3s ease;
+}
+
+.custom-table .el-table__body tr:hover {
+    background: linear-gradient(135deg, #bbdefb 0%, #b3e5fc 100%) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+}
+
+.custom-table .el-table__body td {
+    border-color: #e1f5fe;
+    color: #1565c0;
+    font-weight: 500;
+    padding: 12px 8px;
+}
+
+/* 对话框样式 */
+.el-dialog {
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+}
+
+.el-dialog__header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 16px 16px 0 0;
+    padding: 20px;
+}
+
+.el-dialog__title {
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.el-dialog__body {
+    padding: 30px;
+    background-color: #ffffff;
+}
+
+/* 输入框样式 */
+.el-input__inner {
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+    background-color: #ffffff;
+}
+
+.el-input__inner:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* 选择器样式 */
+.el-select {
+    width: 100%;
+}
+
+.el-select .el-input__inner {
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+}
+
+/* 下拉菜单样式 */
+.el-dropdown-menu {
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    border: 1px solid #e9ecef;
+}
+
+.el-dropdown-menu__item {
+    color: #495057;
+    transition: all 0.3s ease;
+}
+
+.el-dropdown-menu__item:hover {
+    background-color: #f8f9fa;
+    color: #2c3e50;
+}
+
+/* 通知样式 */
+.el-notification {
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+
+/* 加载样式 */
+.el-loading-mask {
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+/* 项目页面样式 */
+.project-header {
+    background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
+    border-radius: 16px;
+    padding: 20px 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 8px 32px rgba(76, 175, 80, 0.2);
+    border: 2px solid #4caf50;
+    position: relative;
+    overflow: hidden;
+}
+
+.project-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #ff9800, #ff5722, #3f51b5);
+}
+
+.project-header .el-button {
+    margin-right: 12px;
+    margin-bottom: 8px;
+}
+
+/* 项目管理按钮组 */
+.project-management-buttons {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 2px solid #2196f3;
+}
+
+/* 场景构建按钮组 */
+.construction-buttons {
+    background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 2px solid #4caf50;
+}
+
+/* 模拟执行按钮组 */
+.simulation-buttons {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffcc02 100%);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 2px solid #ff9800;
+}
+
+/* 画布容器样式 */
+.canvas-container {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border: 1px solid #e9ecef;
+    margin: 20px 0;
+}
+
+/* 侧边栏样式 */
+.sidebar {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border: 1px solid #e9ecef;
+    margin-right: 20px;
+}
+
+/* 统计信息样式 */
+.statistics-panel {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border: 1px solid #e9ecef;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .system-header {
+        font-size: 20px;
+        height: 60px;
+        line-height: 62px;
+    }
+    
+    .control-panel {
+        margin: 10px;
+        padding: 15px;
+    }
+    
+    .project-header {
+        padding: 10px 15px;
+    }
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
