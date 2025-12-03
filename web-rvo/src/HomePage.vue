@@ -1,7 +1,7 @@
 <template>
     <div class="main-container">
         <div class="system-header">
-            复杂建筑行人疏散系统
+            复杂建筑行人疏散模拟
         </div>  
         <input
             type="file"
@@ -348,7 +348,7 @@ body {
     const restweburl = window.config.baseURL;
     export default {
         created(){
-            document.title='复杂建筑行人疏散模拟程序';
+            document.title='复杂建筑行人疏散模拟系统';
             const loading = this.$loading({
                 lock: true,
                 text: '正在加载项目列表',

@@ -390,11 +390,12 @@ public class EvaluateController {
                         agent.setRoom_id(room_id);
                         agent.setPos(new Pos(((Number) peos.get(j).get("x")).doubleValue(), ((Number) peos.get(j).get("y")).doubleValue()));
                         // 设置前往的出口
-                        for(int w = 0; w < exits.size(); w++){
-                            if(roomToExit[i][w] <= 0) continue;
+                        for (int w = 0; w < exits.size(); w++) {
+                            if (roomToExit[i][w] <= 0) continue;
                             else {
                                 roomToExit[i][w] -= 1;
-                                agent.setExitId(w);
+                                // 使用 Exit 实体的真实 ID
+                                agent.setExitId(exits.get(w).getId().intValue());
                                 break;
                             }
                         }
@@ -470,11 +471,12 @@ public class EvaluateController {
                         agent.setRoom_id(room_id);
                         agent.setPos(new Pos(((Number) peos.get(j).get("x")).doubleValue(), ((Number) peos.get(j).get("y")).doubleValue()));
                         // 设置前往的出口
-                        for(int w = 0; w < exits.size(); w++){
-                            if(roomToExit[i+ rooms.size()][w] <= 0) continue;
+                        for (int w = 0; w < exits.size(); w++) {
+                            if (roomToExit[i + rooms.size()][w] <= 0) continue;
                             else {
-                                roomToExit[i+ rooms.size()][w] -= 1;
-                                agent.setExitId(w);
+                                roomToExit[i + rooms.size()][w] -= 1;
+                                // 使用 Exit 实体的真实 ID
+                                agent.setExitId(exits.get(w).getId().intValue());
                                 break;
                             }
                         }
@@ -1646,15 +1648,37 @@ public class EvaluateController {
         }
 
         List<double[]> waypoints = navGrid.getWaypointCoordinates(exitId, graphIndex);
-        if (waypoints == null || waypoints.isEmpty()) {
-            return;
+        if (waypoints == null) {
+            waypoints = Collections.emptyList();
         }
 
+        Pos lastAdded = null;
         for (double[] point : waypoints) {
             if (point == null || point.length < 2) {
                 continue;
             }
-            agent.addWaypoint(new Pos(point[0], point[1]));
+            Pos waypoint = new Pos(point[0], point[1]);
+            if (lastAdded != null && lastAdded.equals(waypoint)) {
+                continue;
+            }
+            agent.addWaypoint(waypoint);
+            lastAdded = waypoint;
+        }
+
+        if (agent.getWaypointXs().isEmpty()) {
+            Pos exitCenter = navGrid.getExitCenter(exitId);
+            if (exitCenter != null) {
+                agent.addWaypoint(exitCenter);
+            }
+        } else {
+            Pos exitCenter = navGrid.getExitCenter(exitId);
+            if (exitCenter != null) {
+                double lastX = agent.getWaypointXs().get(agent.getWaypointXs().size() - 1);
+                double lastY = agent.getWaypointYs().get(agent.getWaypointYs().size() - 1);
+                if (lastX != exitCenter.getX() || lastY != exitCenter.getY()) {
+                    agent.addWaypoint(exitCenter);
+                }
+            }
         }
     }
 

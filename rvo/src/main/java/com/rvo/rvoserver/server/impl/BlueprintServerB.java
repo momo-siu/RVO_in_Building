@@ -12,8 +12,12 @@ import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.lang.reflect.Type;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 @Component
@@ -35,6 +39,27 @@ public class BlueprintServerB implements BlueprintServer {
             System.arraycopy(children, 0, segments, 3, children.length);
         }
         return Paths.get(projectPath, segments);
+    }
+
+    private void deleteSourceDirectory(int bID) throws IOException {
+        Path sourcePath = resolveSourcePath(bID);
+        if (!Files.exists(sourcePath)) {
+            return;
+        }
+
+        Files.walkFileTree(sourcePath, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.deleteIfExists(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                Files.deleteIfExists(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     @Override
@@ -186,6 +211,11 @@ public class BlueprintServerB implements BlueprintServer {
 
     @Override
     public boolean deleteBlueprint(int bID) {
+        try {
+            deleteSourceDirectory(bID);
+        } catch (IOException e) {
+            log.warn("Failed to delete source directory for blueprint {}", bID, e);
+        }
         blueprintMapper.deleteBlueprint(bID);
         return true;
     }

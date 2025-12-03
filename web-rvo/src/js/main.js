@@ -735,194 +735,186 @@ import html2canvas from 'html2canvas' ;
         this.setItem("first",false);
       }
           this.myImg.crossOrigin='';
-          var url = restweburl + 'getBlueprint';
-          var params = new URLSearchParams();
+      let url = restweburl + 'getBlueprint';
+      const params = new URLSearchParams();
 
-          params.append('bID',this.$route.params.bID);
-          axios.post(url,params)
+      params.append('bID',this.$route.params.bID);
+      axios.post(url,params)
+      .then((res) => {
+        this.setItem('cached1',JSON.stringify(res));
+        //首次打开项目
+        if(res.data.data==null){
+          this.$notify({
+            title: '成功',
+            message: '正在初始化项目，请稍等',
+            type: 'success'
+          });
+          //获取比例尺
+          url = restweburl + 'getSize';
+          axios({
+              url: url,
+              method: "post",
+              data:{
+                  bID:this.$route.params.bID,
+              }
+          })
           .then((res) => {
-            //sessionStorage.setItem('res1', JSON.stringify(res));
-            this.setItem('cached1',JSON.stringify(res));
-            //首次打开项目
-            if(res.data.data==null){
-              this.$notify({
-                title: '成功',
-                message: '正在初始化项目，请稍等',
-                type: 'success'
-              });
-              //获取比例尺
-              var url = restweburl + 'getSize';
-              axios({
-                  url: url,
-                  method: "post",
-                  data:{
-                      bID:this.$route.params.bID,
+            this.setItem('cached2',JSON.stringify(res));
+            if(res.data.msg==='success'){
+                const blueprintWidth = Number(res.data.data.width) || 0;
+                const blueprintHeight = Number(res.data.data.height) || 0;
+                if (blueprintWidth > 0 && blueprintHeight > 0) {
+                  const canvasWidth = this.canvas.width;
+                  const canvasHeight = this.canvas.height;
+                  const widthScale = blueprintWidth / canvasWidth;
+                  const heightScale = blueprintHeight / canvasHeight;
+                  if (widthScale >= heightScale) {
+                    this.bST.bTX = widthScale;
+                    this.viewInfo.scale = widthScale;
+                    this.viewInfo.sT = this.bST.bTX * 70;
+                    this.viewInfo.imgX0 = 0;
+                    this.viewInfo.imgX1 = canvasWidth;
+                    const displayHeight = blueprintHeight / this.bST.bTX;
+                    this.viewInfo.imgY0 = (canvasHeight - displayHeight) / 2;
+                    this.viewInfo.imgY1 = this.viewInfo.imgY0 + displayHeight;
+                  } else {
+                    this.bST.bTX = heightScale;
+                    this.viewInfo.scale = heightScale;
+                    this.viewInfo.sT = this.bST.bTX * 70;
+                    const displayWidth = blueprintWidth / this.bST.bTX;
+                    this.viewInfo.imgX0 = (canvasWidth - displayWidth) / 2;
+                    this.viewInfo.imgX1 = this.viewInfo.imgX0 + displayWidth;
+                    this.viewInfo.imgY0 = 0;
+                    this.viewInfo.imgY1 = canvasHeight;
                   }
-              })
-              .then((res) => {
-                this.setItem('cached2',JSON.stringify(res));
-                //sessionStorage.setItem('res2', JSON.stringify(res));
-                  if(res.data.msg==='success'){
-                      //比例尺更新
-                      if(res.data.data.width<res.data.data.height){
-                        this.bST.bTX=res.data.data.height/this.canvas.height;
-                        this.viewInfo.sT=this.bST.bTX*70;
-                        this.viewInfo.imgX0=(this.canvas.width-res.data.data.width/this.bST.bTX)/2;
-                        this.viewInfo.imgX1=this.viewInfo.imgX0+res.data.data.width/this.bST.bTX;
-                        this.viewInfo.imgY0=0;
-                        this.viewInfo.imgY1=this.canvas.height;
-                      }
-                      else{
-                        this.viewInfo.scale=res.data.data.width/this.canvas.width;
-                        this.bST.bTX=res.data.data.width/this.canvas.width;
-                        this.viewInfo.sT=this.bST.bTX*70;
-                        this.viewInfo.imgX0=0;
-                        this.viewInfo.imgX1=this.canvas.width;
-                        this.viewInfo.imgY0=(this.canvas.height-res.data.data.height/this.bST.bTX)/2;
-                        this.viewInfo.imgY1=this.viewInfo.imgY0+res.data.data.height/this.bST.bTX;
-                      }
-                      this.draw();
-                      //底图加载
-                      url = restweburl + 'getBackground';
-                      axios({
-                          url: url,
-                          method: "post",
-                          data:{
-                              bID:this.$route.params.bID,
-                          }
-                      })
-                      .then((res) => {
-                        //sessionStorage.setItem('res4',JSON.stringify(res));
-                        this.setItem('cached3',JSON.stringify(res));
-                          if(res.data.msg==='success'){
-                              this.myImg.src =  restweburl+res.data.data;
-                              this.myImg.crossOrigin = 'anonymous';
-                              this.myImg.onload=()=>
-                              {            
-                                this.ctxBuffer.drawImage(this.myImg, this.viewInfo.imgX0, this.viewInfo.imgY0, this.viewInfo.imgX1-this.viewInfo.imgX0, this.viewInfo.imgY1-this.viewInfo.imgY0);
-  //                               const fabricImage = new fabric.Image(this.myImg);
-
-  // // 设置图片的位置和大小
-  // fabricImage.set({
-  //   left: Math.round(this.viewInfo.imgX0),
-  //   top: Math.round(this.viewInfo.imgY0),
-  //   width: Math.round((this.viewInfo.imgX1 - this.viewInfo.imgX0)),
-  //   height: Math.round((this.viewInfo.imgY1 - this.viewInfo.imgY0))
-  // });
-
-  // // 将图片添加到 canvas 中
-  // this.canvas.add(fabricImage);
-  // this.canvas.renderAll(); // 渲染 canvas 以显示图
-
-                                this.draw();
-                                this.save();
-                                setTimeout(() => {
-                                  if (this.getItem("first")) loading.close();
-                                  this.draw();
-                                  location.reload();
-                                }, 3000);
-                              }
-                          }
-                          else{
-                              this.$notify({
-                                  title: '注意',
-                                  message: res.data.msg,
-                                  type: 'warning',
-                                  offset: 100
-                              });
-                              this.isUpdate=0;
-                          }
-                      }).catch((error) =>{
-                        this.$notify.error({
-                            title: '错误',
-                            message: error,
-                            duration: 0,
+                }
+                this.draw();
+                //底图加载
+                url = restweburl + 'getBackground';
+                axios({
+                    url: url,
+                    method: "post",
+                    data:{
+                        bID:this.$route.params.bID,
+                    }
+                })
+                .then((res) => {
+                  this.setItem('cached3',JSON.stringify(res));
+                    if(res.data.msg==='success'){
+                        this.myImg.src =  restweburl+res.data.data;
+                        this.myImg.crossOrigin = 'anonymous';
+                        this.myImg.onload=()=>
+                        {
+                          const naturalWidth = this.myImg.naturalWidth || this.myImg.width || 0;
+                          const naturalHeight = this.myImg.naturalHeight || this.myImg.height || 0;
+                          this.fitBackgroundToCanvas(naturalWidth, naturalHeight, { updateBase: true });
+                          this.ctxBuffer.drawImage(
+                            this.myImg,
+                            this.viewInfo.imgX0,
+                            this.viewInfo.imgY0,
+                            this.viewInfo.imgX1 - this.viewInfo.imgX0,
+                            this.viewInfo.imgY1 - this.viewInfo.imgY0
+                          );
+                          this.draw();
+                          this.save();
+                          setTimeout(() => {
+                            if (this.getItem("first")) loading.close();
+                            this.draw();
+                            location.reload();
+                          }, 3000);
+                        }
+                    }
+                    else{
+                        this.$notify({
+                            title: '注意',
+                            message: res.data.msg,
+                            type: 'warning',
                             offset: 100
                         });
-                      });
-                  }
-                  else{
-                      this.$notify({
-                          title: '注意',
-                          message: res.data.msg,
-                          type: 'warning',
-                          offset: 100
-                      });
-                      this.isUpdate=0;
-                  }
-
-              }).catch((error) =>{
-                this.$notify.error({
-                    title: '错误',
-                    message: error,
-                    duration: 0,
+                        this.isUpdate=0;
+                    }
+                }).catch((error) =>{
+                  this.$notify.error({
+                      title: '错误',
+                      message: error,
+                      duration: 0,
+                      offset: 100
+                  });
+                });
+            }
+            else{
+                this.$notify({
+                    title: '注意',
+                    message: res.data.msg,
+                    type: 'warning',
                     offset: 100
                 });
-              });
-              
-              return;
+                this.isUpdate=0;
             }
-            //正常加载
-            //底图加载
-            url = restweburl + 'getBackground';
-            axios({
-                url: url,
-                method: "post",
-                data:{
-                    bID:this.$route.params.bID,
-                }
-            })
-            .then((res) => {
-              //sessionStorage.setItem('res3',JSON.stringify(res));
-              this.setItem('cached4',JSON.stringify(res));
-                if(res.data.msg==='success'){
-                    this.myImg.src =  restweburl+res.data.data;
-                    this.myImg.onload=()=>
-                    {
-  //                     const fabricImage = new fabric.Image(this.myImg);
 
-  // // 设置图片的位置和大小
-  // fabricImage.set({
-  //   left: Math.round(this.viewInfo.imgX0),
-  //   top: Math.round(this.viewInfo.imgY0),
-  //   width: Math.round((this.viewInfo.imgX1 - this.viewInfo.imgX0)),
-  //   height: Math.round((this.viewInfo.imgY1 - this.viewInfo.imgY0))
-  // });
-
-  // // 将图片添加到 canvas 中
-  // this.canvas.add(fabricImage);
-  // this.canvas.renderAll(); // 渲染 canvas 以显示图
-                      this.ctxBuffer.drawImage(this.myImg, this.viewInfo.imgX0, this.viewInfo.imgY0, this.viewInfo.imgX1-this.viewInfo.imgX0, this.viewInfo.imgY1-this.viewInfo.imgY0);
-                      setTimeout(() => {
-                        if (this.getItem("first")) loading.close();
-                        this.draw();
-                      }, 2000);
-                    }
+        }).catch((error) =>{
+          this.$notify.error({
+              title: '错误',
+              message: error,
+              duration: 0,
+              offset: 100
+          });
+        });
+        
+        return;
+      }
+      //正常加载
+      //底图加载
+      url = restweburl + 'getBackground';
+      axios({
+          url: url,
+          method: "post",
+          data:{
+              bID:this.$route.params.bID,
+          }
+      })
+      .then((res) => {
+        this.setItem('cached4',JSON.stringify(res));
+          if(res.data.msg==='success'){
+              this.myImg.src =  restweburl+res.data.data;
+              this.myImg.onload=()=>
+              {
+                const naturalWidth = this.myImg.naturalWidth || this.myImg.width || 0;
+                const naturalHeight = this.myImg.naturalHeight || this.myImg.height || 0;
+                if (this.shouldAutoCenterScene()) {
+                  this.fitBackgroundToCanvas(naturalWidth, naturalHeight, { updateBase: true });
                 }
-                else{
-                    this.$notify({
-                        title: '注意',
-                        message: res.data.msg,
-                        type: 'warning',
-                        offset: 100
-                    });
-                    this.isUpdate=0;
-                }
-            }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
+                this.ctxBuffer.drawImage(this.myImg, this.viewInfo.imgX0, this.viewInfo.imgY0, this.viewInfo.imgX1-this.viewInfo.imgX0, this.viewInfo.imgY1-this.viewInfo.imgY0);
+                setTimeout(() => {
+                  if (this.getItem("first")) loading.close();
+                  this.draw();
+                }, 2000);
+              }
+          }
+          else{
+              this.$notify({
+                  title: '注意',
+                  message: res.data.msg,
+                  type: 'warning',
                   offset: 100
               });
-            });
-            //其余信息加载
-            this.pointsNav = res.data.data.pointsNav;//导航点
-            this.pointsNavView= res.data.data.pointsNavView;//导航点
-            this.exits= res.data.data.exits;//门点
-            this.numberOptions = res.data.data.numberOptions;//门点
+              this.isUpdate=0;
+          }
+      }).catch((error) =>{
+        this.$notify.error({
+            title: '错误',
+            message: error,
+            duration: 0,
+            offset: 100
+        });
+      });
+      //其余信息加载
+      this.pointsNav = res.data.data.pointsNav;//导航点
+      this.pointsNavView= res.data.data.pointsNavView;//导航点
+      this.exits= res.data.data.exits;//门点
+      this.numberOptions = res.data.data.numberOptions;//门点
 
-            // 如果集合点确实peoNum添加上
+     // 如果集合点确实peoNum添加上
             // 颜色
             for (let i = 0; i < this.exits.length; i++){
               // 检查当前出口对象是否具有color属性
@@ -1240,6 +1232,53 @@ import html2canvas from 'html2canvas' ;
     },
 
     methods: {
+      fitBackgroundToCanvas(imageWidth, imageHeight, options = {}) {
+        const { updateBase = false } = options;
+        const canvasWidth = this.canvas ? this.canvas.width : 0;
+        const canvasHeight = this.canvas ? this.canvas.height : 0;
+        if (!canvasWidth || !canvasHeight || !imageWidth || !imageHeight) {
+          return;
+        }
+        const widthRatio = canvasWidth / imageWidth;
+        const heightRatio = canvasHeight / imageHeight;
+        const scale = Math.min(widthRatio, heightRatio);
+        const displayWidth = imageWidth * scale;
+        const displayHeight = imageHeight * scale;
+        const offsetX = (canvasWidth - displayWidth) / 2;
+        const offsetY = (canvasHeight - displayHeight) / 2;
+        this.viewInfo.imgX0 = offsetX;
+        this.viewInfo.imgY0 = offsetY;
+        this.viewInfo.imgX1 = offsetX + displayWidth;
+        this.viewInfo.imgY1 = offsetY + displayHeight;
+        if (updateBase) {
+          this.viewInfo.baseX0 = offsetX;
+          this.viewInfo.baseY0 = offsetY;
+          this.viewInfo.baseX1 = offsetX + displayWidth;
+          this.viewInfo.baseY1 = offsetY + displayHeight;
+        }
+      },
+      shouldAutoCenterScene() {
+        const hasRooms = Array.isArray(this.rooms) && this.rooms.some(room => Array.isArray(room.walls) && room.walls.length);
+        const hasPeos = Array.isArray(this.peos) && this.peos.some(peo => Array.isArray(peo.walls) && peo.walls.length);
+        const hasExits = Array.isArray(this.exits) && this.exits.length;
+        const hasNav = Array.isArray(this.pointsNav) && this.pointsNav.length;
+        const hasNavLines = Array.isArray(this.pointsNavView) && this.pointsNavView.length;
+        const hasDensity = Array.isArray(this.ks) && this.ks.length;
+        const hasContent = hasRooms || hasPeos || hasExits || hasNav || hasNavLines || hasDensity;
+        return !hasContent;
+      },
+      drawCenteredLabel(text, centerX, centerY, font, color = 'black', offsetY = 0, ctx = this.ctxBuffer) {
+        if (!ctx || !text) {
+          return;
+        }
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.font = font;
+        const metrics = ctx.measureText(text);
+        const textWidth = metrics && metrics.width ? metrics.width : 0;
+        ctx.fillText(text, centerX - textWidth / 2, centerY + offsetY);
+        ctx.restore();
+      },
       updateDocumentTitle(name){
         if(name && typeof name === 'string' && name.trim().length > 0){
           document.title = `${name.trim()}-项目详情`;
@@ -7672,39 +7711,15 @@ if(this.TID==31||this.TID==29){
               }
 
               //房间编号+名称
-              if(this.viewInfo.isViewRoomId&&this.viewInfo.isViewRoomName){
-                this.ctxBuffer.fillStyle = 'black';
-                this.ctxBuffer.font = 16*this.nST.sTX+'px 微软雅黑 Narrow';
-                
-                if (this.rooms[j].attr.id==undefined){continue;}
-                let str = (this.rooms[j].attr.id).toString()+"#";
-                let len = this.cal_font_len(str);
-                this.ctxBuffer.fillText(str, (this.rooms[j].lca.X1+this.rooms[j].lca.X0)/2-len*20*this.nST.sTX/2, (this.rooms[j].lca.Y1+this.rooms[j].lca.Y0)/2-6*this.nST.sTX);
-                if (this.rooms[j].attr.name==undefined){continue;}
-                this.ctxBuffer.font = 14*this.nST.sTX+'px 微软雅黑 Narrow';
-                this.ctxBuffer.fontWeight = 'bold'; // 加粗字体
-                str = (this.rooms[j].attr.name).toString()+'('+this.rooms[j].peos.length+'人)';
-                len = this.cal_font_len(str);
-                this.ctxBuffer.fillText(str, (this.rooms[j].lca.X1+this.rooms[j].lca.X0)/2-len*14*this.nST.sTX/2, (this.rooms[j].lca.Y1+this.rooms[j].lca.Y0)/2+14*this.nST.sTX);
+              const roomCenterX = (this.rooms[j].lca.X1 + this.rooms[j].lca.X0) / 2;
+              const roomCenterY = (this.rooms[j].lca.Y1 + this.rooms[j].lca.Y0) / 2;
+              if (this.viewInfo.isViewRoomId && this.rooms[j].attr && this.rooms[j].attr.id !== undefined) {
+                const idText = `${this.rooms[j].attr.id}#`;
+                this.drawCenteredLabel(idText, roomCenterX, roomCenterY - 10, 'bold 16px "Microsoft YaHei"');
               }
-              else{
-                if(this.viewInfo.isViewRoomId){
-                  this.ctxBuffer.fillStyle = 'black';
-                  this.ctxBuffer.font = 16*this.nST.sTX+'px 微软雅黑 Narrow';
-                  if (this.rooms[j].attr.id==undefined){continue;}
-                  let str = (this.rooms[j].attr.id).toString()+"#";
-                  let len = this.cal_font_len(str);
-                  this.ctxBuffer.fillText(str, (this.rooms[j].lca.X1+this.rooms[j].lca.X0)/2-len*20*this.nST.sTX/2, (this.rooms[j].lca.Y1+this.rooms[j].lca.Y0)/2+5*this.nST.sTX);
-                } 
-                if(this.viewInfo.isViewRoomName){
-                  this.ctxBuffer.fillStyle = 'black';
-                  this.ctxBuffer.font = 14*this.nST.sTX+'px 微软雅黑 Narrow';
-                  this.ctxBuffer.fontWeight = 'bold'; // 加粗字体
-                  if (this.rooms[j].attr.name==undefined){continue;}
-                  let str = (this.rooms[j].attr.name).toString()+'('+this.rooms[j].peos.length+'人)'  ;
-                  let len = this.cal_font_len(str);
-                  this.ctxBuffer.fillText(str, (this.rooms[j].lca.X1+this.rooms[j].lca.X0)/2-len*14*this.nST.sTX/2, (this.rooms[j].lca.Y1+this.rooms[j].lca.Y0)/2+5*this.nST.sTX);
-                }
+              if (this.viewInfo.isViewRoomName && this.rooms[j].attr && this.rooms[j].attr.name) {
+                const nameText = `${this.rooms[j].attr.name}(${this.rooms[j].peos.length}人)`;
+                this.drawCenteredLabel(nameText, roomCenterX, roomCenterY + 10, '14px "Microsoft YaHei"');
               }
               this.ctxBuffer.stroke();
           }
@@ -7827,39 +7842,15 @@ if(this.TID==31||this.TID==29){
             }
 
             //人口框编号+名称
-            if(this.viewInfo.isViewPeosId&&this.viewInfo.isViewPeosName){
-              this.ctxBuffer.fillStyle = 'black';
-              this.ctxBuffer.font = 16*this.nST.sTX+'px 微软雅黑 Narrow';
-              
-              if (this.peos[j].attr.id==undefined){continue;}
-              let str = (this.peos[j].attr.id).toString()+"#";
-              let len = this.cal_font_len(str);
-              this.ctxBuffer.fillText(str, (this.peos[j].lca.X1+this.peos[j].lca.X0)/2-len*20*this.nST.sTX/2, (this.peos[j].lca.Y1+this.peos[j].lca.Y0)/2-6*this.nST.sTX);
-              if (this.peos[j].attr.name==undefined){continue;}
-              this.ctxBuffer.font = 14*this.nST.sTX+'px 微软雅黑 Narrow';
-              this.ctxBuffer.fontWeight = 'bold'; // 加粗字体
-              str = (this.peos[j].attr.name).toString()+'('+this.peos[j].peos.length+'人)';
-              len = this.cal_font_len(str);
-              this.ctxBuffer.fillText(str, (this.peos[j].lca.X1+this.peos[j].lca.X0)/2-len*14*this.nST.sTX/2, (this.peos[j].lca.Y1+this.peos[j].lca.Y0)/2+14*this.nST.sTX);
+            const peoCenterX = (this.peos[j].lca.X1 + this.peos[j].lca.X0) / 2;
+            const peoCenterY = (this.peos[j].lca.Y1 + this.peos[j].lca.Y0) / 2;
+            if (this.viewInfo.isViewPeosId && this.peos[j].attr && this.peos[j].attr.id !== undefined) {
+              const idText = `${this.peos[j].attr.id}#`;
+              this.drawCenteredLabel(idText, peoCenterX, peoCenterY - 10, 'bold 16px "Microsoft YaHei"');
             }
-            else{
-              if(this.viewInfo.isViewPeosId){
-                this.ctxBuffer.fillStyle = 'black';
-                this.ctxBuffer.font = 16*this.nST.sTX+'px 微软雅黑 Narrow';
-                if (this.peos[j].attr.id==undefined){continue;}
-                let str = (this.peos[j].attr.id).toString()+"#";
-                let len = this.cal_font_len(str);
-                this.ctxBuffer.fillText(str, (this.peos[j].lca.X1+this.peos[j].lca.X0)/2-len*20*this.nST.sTX/2, (this.peos[j].lca.Y1+this.peos[j].lca.Y0)/2+5*this.nST.sTX);
-              } 
-              if(this.viewInfo.isViewPeosName){
-                this.ctxBuffer.fillStyle = 'black';
-                this.ctxBuffer.font = 14*this.nST.sTX+'px 微软雅黑 Narrow';
-                this.ctxBuffer.fontWeight = 'bold'; // 加粗字体
-                if (this.peos[j].attr.name==undefined){continue;}
-                let str = (this.peos[j].attr.name).toString()+'('+this.peos[j].peos.length+'人)'  ;
-                let len = this.cal_font_len(str);
-                this.ctxBuffer.fillText(str, (this.peos[j].lca.X1+this.peos[j].lca.X0)/2-len*14*this.nST.sTX/2, (this.peos[j].lca.Y1+this.peos[j].lca.Y0)/2+5*this.nST.sTX);
-              }
+            if (this.viewInfo.isViewPeosName && this.peos[j].attr && this.peos[j].attr.name) {
+              const nameText = `${this.peos[j].attr.name}(${this.peos[j].peos.length}人)`;
+              this.drawCenteredLabel(nameText, peoCenterX, peoCenterY + 10, '14px "Microsoft YaHei"');
             }
             this.ctxBuffer.stroke();
         }
@@ -7888,7 +7879,7 @@ if(this.TID==31||this.TID==29){
             }
 
             //绘制导航线条
-            if((this.drawConfig[4].state || this.navEdit.active) && this.isDrawing==0){
+            if (this.drawConfig[4].state || this.navEdit.active) {
               this.ctxBuffer.strokeStyle = this.drawConfig[4].color; 
               this.ctxBuffer.lineWidth = this.drawConfig[4].r*this.nST.sTX;
               for (let i = 0; i < this.pointsNavView.length; i++) {
@@ -7970,31 +7961,15 @@ if(this.TID==31||this.TID==29){
             // 填充形状
             this.ctxBuffer.fillRect(this.exits[i].x0, this.exits[i].y0,this.exits[i].x1-this.exits[i].x0, this.exits[i].y2-this.exits[i].y0);
 
-            if(this.viewInfo.isViewExportId&&this.viewInfo.isViewExportName){
-              this.ctxBuffer.fillStyle = 'black';
-              this.ctxBuffer.font = this.viewInfo.fontSize*this.nST.sTX+'px Arial';
-              let str = this.exits[i].id+"#";
-              let len = this.cal_font_len(str);
-              this.ctxBuffer.fillText(str, (this.exits[i].x0+this.exits[i].x1)/2-len*20*this.nST.sTX/2, (this.exits[i].y0+this.exits[i].y3)/2-8*this.nST.sTX);
-              str = this.exits[i].name;
-              len = this.cal_font_len(str);
-              this.ctxBuffer.fillText(str, (this.exits[i].x0+this.exits[i].x1)/2-len*20*this.nST.sTX/2, (this.exits[i].y0+this.exits[i].y3)/2+14*this.nST.sTX);
+            const exitCenterX = (this.exits[i].x0 + this.exits[i].x1) / 2;
+            const exitCenterY = (this.exits[i].y0 + this.exits[i].y3) / 2;
+            const exitFontSize = this.viewInfo.fontSize || 20;
+            if (this.viewInfo.isViewExportId) {
+              const idText = `${this.exits[i].id}#`;
+              this.drawCenteredLabel(idText, exitCenterX, exitCenterY - 10, `bold ${exitFontSize}px Arial`);
             }
-            else{
-              if(this.viewInfo.isViewExportId){
-                this.ctxBuffer.fillStyle = 'black';
-                this.ctxBuffer.font = this.viewInfo.fontSize*this.nST.sTX+'px Arial';
-                let str = this.exits[i].id+"#";
-                let len = this.cal_font_len(str);
-                this.ctxBuffer.fillText(str, (this.exits[i].x0+this.exits[i].x1)/2-len*20*this.nST.sTX/2, (this.exits[i].y0+this.exits[i].y3)/2+5*this.nST.sTX);
-              }
-              if(this.viewInfo.isViewExportName){
-                this.ctxBuffer.fillStyle = 'black';
-                this.ctxBuffer.font = this.viewInfo.fontSize*this.nST.sTX+'px Arial';
-                let str = this.exits[i].name;
-                let len = this.cal_font_len(str);
-                this.ctxBuffer.fillText(str, (this.exits[i].x0+this.exits[i].x1)/2-len*20*this.nST.sTX/2, (this.exits[i].y0+this.exits[i].y3)/2+5*this.nST.sTX);
-              }
+            if (this.viewInfo.isViewExportName && this.exits[i].name) {
+              this.drawCenteredLabel(this.exits[i].name, exitCenterX, exitCenterY + 10, `${exitFontSize}px Arial`);
             }
             
         }

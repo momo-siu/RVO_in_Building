@@ -1051,34 +1051,80 @@ public class NavGrid {
     }
 
     public List<double[]> getWaypointCoordinates(int exitId, int startVertexIndex) {
-        if (pathToAllExitMap == null || exitId < 0 || exitId >= pathToAllExitMap.size() || vertexID == null) {
+        int exitIndex = resolveExitIndex(exitId);
+        if (pathToAllExitMap == null || exitIndex < 0 || exitIndex >= pathToAllExitMap.size() || vertexID == null) {
             return Collections.emptyList();
         }
-        Map<Integer, List<Integer>> exitPaths = pathToAllExitMap.get(exitId);
+        Map<Integer, List<Integer>> exitPaths = pathToAllExitMap.get(exitIndex);
         if (exitPaths == null) {
             return Collections.emptyList();
         }
-        List<Integer> path = exitPaths.get(startVertexIndex);
+
+        int lookupIndex = startVertexIndex;
+        List<Integer> path = exitPaths.get(lookupIndex);
+        if ((path == null || path.isEmpty()) && vertexID != null) {
+            int candidateIndex = vertexID.indexOf(startVertexIndex);
+            if (candidateIndex >= 0) {
+                lookupIndex = candidateIndex;
+                path = exitPaths.get(lookupIndex);
+            }
+        }
+
         if (path == null || path.size() <= 1) {
             return Collections.emptyList();
         }
+
         List<double[]> coordinates = new ArrayList<>();
         for (int idx = path.size() - 2; idx >= 0; idx--) {
             int graphIdx = path.get(idx);
             Pos waypointPos;
             if (graphIdx >= vertexID.size()) {
-                int exitIndex = graphIdx - vertexID.size();
-                if (exitIndex < 0 || exitIndex >= exits.size()) {
+                int exitOrder = graphIdx - vertexID.size();
+                if (exitOrder < 0 || exitOrder >= exits.size()) {
                     continue;
                 }
-                waypointPos = exits.get(exitIndex).getCenter();
+                waypointPos = exits.get(exitOrder).getCenter();
             } else {
+                if (graphIdx < 0 || graphIdx >= vertexID.size()) {
+                    continue;
+                }
                 int pointIdx = vertexID.get(graphIdx);
+                if (pointIdx < 0 || pointIdx >= points.size()) {
+                    continue;
+                }
                 waypointPos = points.get(pointIdx);
             }
             coordinates.add(new double[]{waypointPos.getX(), waypointPos.getY()});
         }
         return coordinates;
+    }
+
+    public Pos getExitCenter(int exitId) {
+        int exitIndex = resolveExitIndex(exitId);
+        if (exitIndex < 0 || exitIndex >= exits.size()) {
+            return null;
+        }
+        Exit exit = exits.get(exitIndex);
+        if (exit == null || exit.getCenter() == null) {
+            return null;
+        }
+        Pos center = exit.getCenter();
+        return new Pos(center.getX(), center.getY());
+    }
+
+    private int resolveExitIndex(int exitId) {
+        if (exits != null) {
+            for (int idx = 0; idx < exits.size(); idx++) {
+                Exit exit = exits.get(idx);
+                if (exit != null && exit.getId() != null && exit.getId().intValue() == exitId) {
+                    return idx;
+                }
+            }
+        }
+        if (exitId >= 0 && exits != null && exitId < exits.size()) {
+            return exitId;
+        }
+        return -1;
     }
 
     // 判断点p是否在多边形polygon内

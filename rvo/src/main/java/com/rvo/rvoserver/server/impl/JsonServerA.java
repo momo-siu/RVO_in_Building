@@ -148,7 +148,11 @@ public class JsonServerA implements JsonServer {
             writing = 0;
         }
 
-        Files.move(tempPath, jsonPath, StandardCopyOption.REPLACE_EXISTING);
+        if (Files.exists(tempPath)) {
+            Files.move(tempPath, jsonPath, StandardCopyOption.REPLACE_EXISTING);
+        } else {
+            System.err.println("result-json temp file missing: " + tempPath + ", skip promoting to " + jsonPath);
+        }
     }
 
     @Override

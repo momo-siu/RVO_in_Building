@@ -5,7 +5,8 @@
 #include <vector>
 #include <memory>
 #include <map>
-#include <RVO.h>
+#include <utility>
+#include "nav_grid.h"
 
 namespace rvocpp {
 
@@ -69,23 +70,32 @@ namespace rvocpp {
         bool saveResults();
 
     private:
-        // RVO2模拟器
-        std::unique_ptr<::RVO::RVOSimulator> simulator_;
+        struct ActiveAgent {
+            int agentIndex;
+            double x;
+            double y;
+            double vx;
+            double vy;
+        };
 
         // 输入数据
         std::vector<Agent> agents_;
         std::vector<Obstacle> obstacles_;
         std::vector<Exit> exits_;
         std::vector<NavPoint> navPoints_;
+        std::vector<RoomC> rooms_;
+        std::vector<PeopleGroupC> peopleGroups_;
         SimulationConfig config_;
+
+        std::unique_ptr<NavGrid> navGrid_;
+        std::vector<std::map<std::string, int>> navLines_;
+        std::vector<ActiveAgent> activeAgents_;
 
         // 模拟状态
         int currentStep_;
         int maxSteps_;
-        std::vector<int> agentIds_;  // 当前在模拟中的agent ID
         std::vector<int> waitingList_;  // 等待进入的agent索引
-        std::vector<int> rvoAgentToAgentIndex_;
-        std::vector<::RVO::Vector2> agentGoals_;
+        std::vector<std::pair<double, double>> agentGoals_;
         std::vector<bool> agentCompleted_;
         float goalThreshold_;
 
@@ -111,15 +121,15 @@ namespace rvocpp {
         // 辅助方法
         void initializeSimulator();
         void addAgentToSimulator(int agentIndex);
-        void setPreferredVelocities();
+        void stepAgents();
         bool reachedGoal();
         void updateProgress(int bID);
         void reportProgress(double completion) const;
         void updateCompletedAgents();
-        void advanceWaypointsIfNeeded(int agentIndex, const ::RVO::Vector2& position);
-        ::RVO::Vector2 getCurrentTarget(int agentIndex) const;
+        void advanceWaypointsIfNeeded(int agentIndex, double posX, double posY);
+        std::pair<double, double> getCurrentTarget(int agentIndex) const;
         bool agentHasWaypoints(int agentIndex) const;
-        ::RVO::Vector2 getExitCenter(int exitId) const;
+        std::pair<double, double> getExitCenter(int exitId) const;
         bool writeRawSimulationJson(const std::string& outputDir) const;
     };
 }

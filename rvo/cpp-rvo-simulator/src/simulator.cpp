@@ -12,13 +12,11 @@
 
 namespace {
     using json = nlohmann::json;
-    constexpr float kTimeStep = 0.25f;          // 与Java实现近似的时间步
-    constexpr float kDefaultNeighborDist = 5.0f;
-    constexpr size_t kDefaultMaxNeighbors = 10;
-    constexpr float kDefaultTimeHorizon = 5.0f;
-    constexpr float kDefaultTimeHorizonObst = 5.0f;
-    constexpr float kDefaultRadius = 0.5f;
-    constexpr float kDefaultMaxSpeed = 1.5f;
+    constexpr double kTimeStep = 0.25;          // 与旧逻辑一致的离散步长
+    constexpr double kAgentRadius = 0.4;        // 简易碰撞半径
+    constexpr double kNeighborRadius = 1.5;     // 分离作用半径
+    constexpr double kSeparationStrength = 1.0; // 分离系数
+    constexpr double kEpsilon = 1e-6;
 }
 
 namespace rvocpp {
@@ -129,6 +127,104 @@ bool RVOSimulator::loadFromJSON(const std::string& jsonPath) {
         }
     }
 
+    rooms_.clear();
+    if (data.contains("rooms") && data["rooms"].is_array()) {
+        for (const auto& roomNode : data["rooms"]) {
+            RoomC room;
+            room.rid = roomNode.value("rid", 0);
+            room.peopleCount = 0;
+            if (roomNode.contains("peos") && roomNode["peos"].is_array()) {
+                room.peopleCount = static_cast<int>(roomNode["peos"].size());
+            }
+            if (roomNode.contains("walls") && roomNode["walls"].is_array()) {
+                for (const auto& wallNode : roomNode["walls"]) {
+                    double x = wallNode.value("x", kMinCoordinate - 1.0);
+                    double y = wallNode.value("y", kMinCoordinate - 1.0);
+                    if (x > kMinCoordinate) {
+                        room.walls.push_back({x, y});
+                    }
+                }
+            }
+            rooms_.push_back(std::move(room));
+        }
+    }
+
+    peopleGroups_.clear();
+    if (data.contains("peos") && data["peos"].is_array()) {
+        for (const auto& groupNode : data["peos"]) {
+            PeopleGroupC group;
+            if (groupNode.contains("attr") && groupNode["attr"].is_object()) {
+                group.id = groupNode["attr"].value("id", 0);
+            } else {
+                group.id = groupNode.value("id", 0);
+            }
+            group.peopleCount = 0;
+            if (groupNode.contains("peos") && groupNode["peos"].is_array()) {
+                group.peopleCount = static_cast<int>(groupNode["peos"].size());
+            }
+            if (groupNode.contains("walls") && groupNode["walls"].is_array()) {
+                for (const auto& wallNode : groupNode["walls"]) {
+                    double x = wallNode.value("x", kMinCoordinate - 1.0);
+                    double y = wallNode.value("y", kMinCoordinate - 1.0);
+                    if (x > kMinCoordinate) {
+                        group.walls.push_back({x, y});
+                    }
+                }
+            }
+            peopleGroups_.push_back(std::move(group));
+        }
+    }
+
+    // 构建 NavGrid（复制数据至 NavGrid 所需的结构）
+    std::vector<NavPointC> navPointsForGrid;
+    navPointsForGrid.reserve(navPoints_.size());
+    for (const auto& nav : navPoints_) {
+        navPointsForGrid.push_back(NavPointC{nav.x, nav.y, nav.state, nav.roomIds});
+    }
+
+    std::vector<ObstacleC> obstaclesForGrid;
+    obstaclesForGrid.reserve(obstacles_.size());
+    for (const auto& ob : obstacles_) {
+        obstaclesForGrid.push_back(ObstacleC{ob.x1, ob.y1, ob.x2, ob.y2});
+    }
+
+    std::vector<ExitC> exitsForGrid;
+    exitsForGrid.reserve(exits_.size());
+    for (const auto& exit : exits_) {
+        ExitC exitC;
+        exitC.cx = (exit.x0 + exit.x1) / 2.0;
+        exitC.cy = (exit.y0 + exit.y1) / 2.0;
+        exitC.id = static_cast<int>(exit.id);
+        exitsForGrid.push_back(exitC);
+    }
+
+    navGrid_ = std::make_unique<NavGrid>(navPointsForGrid, obstaclesForGrid, exitsForGrid, rooms_, peopleGroups_);
+    navLines_ = navGrid_->generateLines();
+
+    // 依据 NavGrid 为每个 agent 生成 waypoint
+    for (auto& agent : agents_) {
+        ::std::pair<double, double> entryPos{agent.x, agent.y};
+        int nearestVertex = navGrid_->findClosestGraphVertex(entryPos.first, entryPos.second, true);
+        agent.graphNodeIndex = nearestVertex;
+        agent.waypointXs.clear();
+        agent.waypointYs.clear();
+        agent.waypointCursor = 0;
+
+        if (nearestVertex >= 0) {
+            auto coords = navGrid_->getWaypointCoordinates(agent.exitId, nearestVertex);
+            // NavGrid 返回从当前点通往出口的导航点，按顺序写入
+            for (const auto& [wx, wy] : coords) {
+                agent.waypointXs.push_back(wx);
+                agent.waypointYs.push_back(wy);
+            }
+        } else {
+            // 无直接可达导航点，则尝试直接以出口中心为目标
+            auto center = navGrid_->getExitCenter(agent.exitId);
+            agent.waypointXs.push_back(center.first);
+            agent.waypointYs.push_back(center.second);
+        }
+    }
+
     // 初始化等待列表和目标
     waitingList_.clear();
     waitingList_.reserve(agents_.size());
@@ -139,7 +235,7 @@ bool RVOSimulator::loadFromJSON(const std::string& jsonPath) {
         return agents_[lhs].startTime < agents_[rhs].startTime;
     });
 
-    agentGoals_.assign(agents_.size(), ::RVO::Vector2());
+    agentGoals_.assign(agents_.size(), std::make_pair(0.0, 0.0));
     for (size_t i = 0; i < agents_.size(); ++i) {
         agentGoals_[i] = getExitCenter(agents_[i].exitId);
     }
@@ -161,7 +257,7 @@ bool RVOSimulator::run() {
     initializeSimulator();
 
     while (currentStep_ < maxSteps_) {
-        // 1. 按 startTime 把 agent 从 waitingList_ 加入模拟
+        // 1. 按 startTime 将 agent 加入模拟
         while (!waitingList_.empty()) {
             int agentIndex = waitingList_.front();
             if (agents_[agentIndex].startTime * 100.0 <= currentStep_) {
@@ -172,28 +268,32 @@ bool RVOSimulator::run() {
             }
         }
 
-        // 2. 记录当前帧
+        // 2. 记录当前帧位置
         FrameData frame;
         frame.step = currentStep_;
-        size_t numAgents = simulator_->getNumAgents();
-        for (size_t i = 0; i < numAgents; ++i) {
-            ::RVO::Vector2 pos = simulator_->getAgentPosition(i);
-            if (i < agentIds_.size()) {
-                frame.positions.push_back({agentIds_[i], {pos.x(), pos.y()}});
+        for (const auto& active : activeAgents_) {
+            int agentIndex = active.agentIndex;
+            if (agentIndex >= 0 && agentIndex < static_cast<int>(agents_.size())) {
+                frame.positions.push_back({agents_[agentIndex].id, {active.x, active.y}});
             }
         }
         frames_.push_back(std::move(frame));
 
+        // 3. 更新完成状态
         updateCompletedAgents();
         if (reachedGoal()) {
             break;
         }
 
-        // 3. 设置首选速度并执行一步
-        setPreferredVelocities();
-        simulator_->doStep();
+        // 4. 推进一步
+        stepAgents();
 
-        // 4. 更新进度
+        // 5. 再次检查完成
+        updateCompletedAgents();
+        if (reachedGoal()) {
+            break;
+        }
+
         if (currentStep_ % 10 == 0) {
             updateProgress(config_.bID);
         }
@@ -247,87 +347,6 @@ bool RVOSimulator::saveResults() {
     return true;
 }
 
-void RVOSimulator::initializeSimulator() {
-    simulator_ = std::make_unique<::RVO::RVOSimulator>();
-    simulator_->setTimeStep(kTimeStep);
-    currentStep_ = 0;
-    agentIds_.clear();
-    rvoAgentToAgentIndex_.clear();
-    frames_.clear();
-    completedEvents_.clear();
-
-    // 添加障碍物
-    for (const auto& obstacle : obstacles_) {
-        std::vector<::RVO::Vector2> vertices;
-        vertices.emplace_back(obstacle.x1, obstacle.y1);
-        vertices.emplace_back(obstacle.x2, obstacle.y2);
-        simulator_->addObstacle(vertices);
-    }
-    
-    // 处理障碍物
-    simulator_->processObstacles();
-    
-    // goal 阈值与scale相关
-    goalThreshold_ = static_cast<float>(std::max(0.5, config_.scale * 0.5));
-}
-
-void RVOSimulator::addAgentToSimulator(int agentIndex) {
-    const auto& agent = agents_[agentIndex];
-    
-    // 添加到RVO模拟器
-    ::RVO::Vector2 position(agent.x, agent.y);
-    size_t rvoIndex = simulator_->addAgent(
-        position,
-        kDefaultNeighborDist,
-        static_cast<size_t>(kDefaultMaxNeighbors),
-        kDefaultTimeHorizon,
-        kDefaultTimeHorizonObst,
-        kDefaultRadius,
-        std::max(static_cast<float>(agent.velocity), kDefaultMaxSpeed),
-        ::RVO::Vector2(0.0f, 0.0f)
-    );
-
-    if (agentIds_.size() <= rvoIndex) {
-        agentIds_.resize(rvoIndex + 1, -1);
-    }
-    agentIds_[rvoIndex] = agent.id;
-
-    if (rvoAgentToAgentIndex_.size() <= rvoIndex) {
-        rvoAgentToAgentIndex_.resize(rvoIndex + 1, -1);
-    }
-    rvoAgentToAgentIndex_[rvoIndex] = agentIndex;
-}
-
-void RVOSimulator::setPreferredVelocities() {
-    size_t numAgents = simulator_->getNumAgents();
-    for (size_t i = 0; i < numAgents; ++i) {
-        if (i >= rvoAgentToAgentIndex_.size()) {
-            continue;
-        }
-        int agentIndex = rvoAgentToAgentIndex_[i];
-        if (agentIndex < 0 || agentIndex >= static_cast<int>(agents_.size())) {
-            continue;
-        }
-
-        ::RVO::Vector2 preferredVel(0.0f, 0.0f);
-        if (!agentCompleted_[agentIndex]) {
-            ::RVO::Vector2 pos = simulator_->getAgentPosition(i);
-            advanceWaypointsIfNeeded(agentIndex, pos);
-            ::RVO::Vector2 goal = getCurrentTarget(agentIndex);
-            ::RVO::Vector2 toGoal = goal - pos;
-            float distSq = ::RVO::absSq(toGoal);
-            if (distSq > 1e-6f) {
-                toGoal = ::RVO::normalize(toGoal);
-                float preferredSpeed = static_cast<float>(agents_[agentIndex].velocity);
-                preferredSpeed = std::max(0.1f, std::min(preferredSpeed, kDefaultMaxSpeed));
-                preferredVel = toGoal * preferredSpeed;
-            }
-        }
-
-        simulator_->setAgentPrefVelocity(i, preferredVel);
-    }
-}
-
 bool RVOSimulator::reachedGoal() {
     if (!waitingList_.empty()) {
         return false;
@@ -358,13 +377,141 @@ void RVOSimulator::reportProgress(double completion) const {
     std::cout.flush();
 }
 
-void RVOSimulator::updateCompletedAgents() {
-    size_t numAgents = simulator_->getNumAgents();
-    for (size_t i = 0; i < numAgents; ++i) {
-        if (i >= rvoAgentToAgentIndex_.size()) {
+bool RVOSimulator::agentHasWaypoints(int agentIndex) const {
+    if (agentIndex < 0 || agentIndex >= static_cast<int>(agents_.size())) {
+        return false;
+    }
+    const auto& agent = agents_[agentIndex];
+    return !agent.waypointXs.empty() && agent.waypointXs.size() == agent.waypointYs.size();
+}
+
+void RVOSimulator::initializeSimulator() {
+    currentStep_ = 0;
+    frames_.clear();
+    completedEvents_.clear();
+    activeAgents_.clear();
+
+    for (auto& agent : agents_) {
+        agent.waypointCursor = std::min(agent.waypointCursor, agent.waypointXs.size());
+    }
+
+    double maxAgentSpeed = 0.0;
+    for (const auto& agent : agents_) {
+        maxAgentSpeed = std::max(maxAgentSpeed, agent.velocity);
+    }
+    double dynamicThreshold = (maxAgentSpeed <= 0.0) ? 0.0 : maxAgentSpeed * kTimeStep;
+    goalThreshold_ = static_cast<float>(std::max({0.5, config_.scale * 0.5, dynamicThreshold}));
+}
+
+void RVOSimulator::addAgentToSimulator(int agentIndex) {
+    if (agentIndex < 0 || agentIndex >= static_cast<int>(agents_.size())) {
+        return;
+    }
+    auto existing = std::find_if(activeAgents_.begin(), activeAgents_.end(), [&](const ActiveAgent& a) {
+        return a.agentIndex == agentIndex;
+    });
+    if (existing != activeAgents_.end()) {
+        return;
+    }
+
+    const auto& agent = agents_[agentIndex];
+    ActiveAgent active{};
+    active.agentIndex = agentIndex;
+    active.x = agent.x;
+    active.y = agent.y;
+    active.vx = 0.0;
+    active.vy = 0.0;
+    activeAgents_.push_back(active);
+}
+
+void RVOSimulator::stepAgents() {
+    for (auto& active : activeAgents_) {
+        int agentIndex = active.agentIndex;
+        if (agentIndex < 0 || agentIndex >= static_cast<int>(agents_.size())) {
             continue;
         }
-        int agentIndex = rvoAgentToAgentIndex_[i];
+        if (agentCompleted_[agentIndex]) {
+            active.vx = 0.0;
+            active.vy = 0.0;
+            continue;
+        }
+
+        auto& agent = agents_[agentIndex];
+        double posX = active.x;
+        double posY = active.y;
+
+        advanceWaypointsIfNeeded(agentIndex, posX, posY);
+
+        auto target = getCurrentTarget(agentIndex);
+        double toGoalX = target.first - posX;
+        double toGoalY = target.second - posY;
+        double distSq = toGoalX * toGoalX + toGoalY * toGoalY;
+
+        double desiredVelX = 0.0;
+        double desiredVelY = 0.0;
+        const double preferredSpeed = std::max(agent.velocity, 0.0);
+        if (distSq > kEpsilon) {
+            double dist = std::sqrt(distSq);
+            double normalX = toGoalX / dist;
+            double normalY = toGoalY / dist;
+            desiredVelX = normalX * preferredSpeed;
+            desiredVelY = normalY * preferredSpeed;
+        }
+
+        double sepX = 0.0;
+        double sepY = 0.0;
+        for (const auto& other : activeAgents_) {
+            if (&other == &active) {
+                continue;
+            }
+            int otherIndex = other.agentIndex;
+            if (otherIndex < 0 || otherIndex >= static_cast<int>(agents_.size())) {
+                continue;
+            }
+            if (agentCompleted_[otherIndex]) {
+                continue;
+            }
+            double dx = posX - other.x;
+            double dy = posY - other.y;
+            double neighborDistSq = dx * dx + dy * dy;
+            if (neighborDistSq < kNeighborRadius * kNeighborRadius && neighborDistSq > kEpsilon) {
+                double neighborDist = std::sqrt(neighborDistSq);
+                double weight = (kNeighborRadius - neighborDist) / kNeighborRadius;
+                if (neighborDist > kEpsilon) {
+                    sepX += weight * (dx / neighborDist);
+                    sepY += weight * (dy / neighborDist);
+                }
+            }
+        }
+
+        desiredVelX += kSeparationStrength * sepX;
+        desiredVelY += kSeparationStrength * sepY;
+
+        double speedSq = desiredVelX * desiredVelX + desiredVelY * desiredVelY;
+        double maxSpeed = std::max(preferredSpeed, 0.0);
+        if (speedSq > maxSpeed * maxSpeed && speedSq > kEpsilon) {
+            double scale = maxSpeed / std::sqrt(speedSq);
+            desiredVelX *= scale;
+            desiredVelY *= scale;
+        }
+
+        double newX = posX + desiredVelX * kTimeStep;
+        double newY = posY + desiredVelY * kTimeStep;
+
+        active.vx = desiredVelX;
+        active.vy = desiredVelY;
+        active.x = newX;
+        active.y = newY;
+
+        agents_[agentIndex].x = newX;
+        agents_[agentIndex].y = newY;
+    }
+}
+
+void RVOSimulator::updateCompletedAgents() {
+    bool anyRemoval = false;
+    for (auto& active : activeAgents_) {
+        int agentIndex = active.agentIndex;
         if (agentIndex < 0 || agentIndex >= static_cast<int>(agents_.size())) {
             continue;
         }
@@ -372,26 +519,41 @@ void RVOSimulator::updateCompletedAgents() {
             continue;
         }
 
-        ::RVO::Vector2 goal = getCurrentTarget(agentIndex);
-        ::RVO::Vector2 pos = simulator_->getAgentPosition(i);
-        if (::RVO::absSq(goal - pos) <= goalThreshold_ * goalThreshold_) {
-            advanceWaypointsIfNeeded(agentIndex, pos);
-            goal = getCurrentTarget(agentIndex);
-        }
-        if (::RVO::absSq(goal - pos) <= goalThreshold_ * goalThreshold_) {
-            agentCompleted_[agentIndex] = true;
+        advanceWaypointsIfNeeded(agentIndex, active.x, active.y);
+        auto target = getCurrentTarget(agentIndex);
+        double dx = target.first - active.x;
+        double dy = target.second - active.y;
+        double distSq = dx * dx + dy * dy;
 
-            CompletedEvent event;
-            event.agentId = agents_[agentIndex].id;
-            event.exitId = agents_[agentIndex].exitId;
-            event.frameIndex = currentStep_;
-            event.time = static_cast<double>(currentStep_) * kTimeStep;
-            completedEvents_.push_back(event);
+        if (distSq <= goalThreshold_ * goalThreshold_) {
+            advanceWaypointsIfNeeded(agentIndex, active.x, active.y);
+            target = getCurrentTarget(agentIndex);
+            dx = target.first - active.x;
+            dy = target.second - active.y;
+            distSq = dx * dx + dy * dy;
+            if (distSq <= goalThreshold_ * goalThreshold_) {
+                agentCompleted_[agentIndex] = true;
+                anyRemoval = true;
+
+                CompletedEvent event;
+                event.agentId = agents_[agentIndex].id;
+                event.exitId = agents_[agentIndex].exitId;
+                event.frameIndex = currentStep_;
+                event.time = static_cast<double>(currentStep_) * kTimeStep;
+                completedEvents_.push_back(event);
+            }
         }
+    }
+
+    if (anyRemoval) {
+        activeAgents_.erase(std::remove_if(activeAgents_.begin(), activeAgents_.end(), [&](const ActiveAgent& active) {
+            int idx = active.agentIndex;
+            return idx >= 0 && idx < static_cast<int>(agentCompleted_.size()) && agentCompleted_[idx];
+        }), activeAgents_.end());
     }
 }
 
-void RVOSimulator::advanceWaypointsIfNeeded(int agentIndex, const ::RVO::Vector2& position) {
+void RVOSimulator::advanceWaypointsIfNeeded(int agentIndex, double posX, double posY) {
     if (!agentHasWaypoints(agentIndex)) {
         return;
     }
@@ -402,8 +564,8 @@ void RVOSimulator::advanceWaypointsIfNeeded(int agentIndex, const ::RVO::Vector2
     while (agent.waypointCursor < agent.waypointXs.size()) {
         double wx = agent.waypointXs[agent.waypointCursor];
         double wy = agent.waypointYs[agent.waypointCursor];
-        double dx = static_cast<double>(position.x()) - wx;
-        double dy = static_cast<double>(position.y()) - wy;
+        double dx = posX - wx;
+        double dy = posY - wy;
         double distSq = dx * dx + dy * dy;
         if (distSq <= thresholdSq) {
             ++agent.waypointCursor;
@@ -413,39 +575,29 @@ void RVOSimulator::advanceWaypointsIfNeeded(int agentIndex, const ::RVO::Vector2
     }
 }
 
-::RVO::Vector2 RVOSimulator::getCurrentTarget(int agentIndex) const {
+std::pair<double, double> RVOSimulator::getCurrentTarget(int agentIndex) const {
     if (!agentHasWaypoints(agentIndex)) {
         return agentGoals_[agentIndex];
     }
 
     const auto& agent = agents_[agentIndex];
     if (agent.waypointCursor < agent.waypointXs.size()) {
-        float wx = static_cast<float>(agent.waypointXs[agent.waypointCursor]);
-        float wy = static_cast<float>(agent.waypointYs[agent.waypointCursor]);
-        return ::RVO::Vector2(wx, wy);
+        return {agent.waypointXs[agent.waypointCursor], agent.waypointYs[agent.waypointCursor]};
     }
 
     return agentGoals_[agentIndex];
 }
 
-bool RVOSimulator::agentHasWaypoints(int agentIndex) const {
-    if (agentIndex < 0 || agentIndex >= static_cast<int>(agents_.size())) {
-        return false;
-    }
-    const auto& agent = agents_[agentIndex];
-    return !agent.waypointXs.empty() && agent.waypointXs.size() == agent.waypointYs.size();
-}
-
-::RVO::Vector2 RVOSimulator::getExitCenter(int exitId) const {
+std::pair<double, double> RVOSimulator::getExitCenter(int exitId) const {
     auto it = std::find_if(exits_.begin(), exits_.end(), [&](const Exit& e) {
         return static_cast<int>(e.id) == exitId;
     });
     if (it == exits_.end()) {
-        return ::RVO::Vector2(0.0f, 0.0f);
+        return {0.0, 0.0};
     }
-    float centerX = static_cast<float>((it->x0 + it->x1) / 2.0);
-    float centerY = static_cast<float>((it->y0 + it->y1) / 2.0);
-    return ::RVO::Vector2(centerX, centerY);
+    double centerX = (it->x0 + it->x1) / 2.0;
+    double centerY = (it->y0 + it->y1) / 2.0;
+    return {centerX, centerY};
 }
 
 bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
