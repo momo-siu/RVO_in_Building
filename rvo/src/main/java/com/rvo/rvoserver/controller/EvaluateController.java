@@ -586,6 +586,9 @@ public class EvaluateController {
             file.renameTo(file1); // 重命名
             // 获取模拟时间
             Map<String, Object> res = evaluateServer.getExportStatistics(bID, 1,1,temp_id+"/1");
+            if (res == null) {
+                return Result.error("统计数据缺失，请检查模拟结果文件");
+            }
             int now_cnt = (Integer) res.get("totalTime");
             if (now_cnt<MTimes){
                 MTimes = now_cnt;

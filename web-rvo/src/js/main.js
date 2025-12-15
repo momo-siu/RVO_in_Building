@@ -1169,7 +1169,8 @@ import html2canvas from 'html2canvas' ;
       
       this.canvas = this.$refs.canvas;
       //
-      var dpr = (window.devicePixelRatio || 1);
+      this.dpr = window.devicePixelRatio || 1;
+      const dpr = this.dpr;
       // var screenWidth = window.innerWidth;
       //var screenHeight = window.innerHeight;
       // const width = screenWidth;
@@ -8061,7 +8062,7 @@ if(this.TID==31||this.TID==29){
       },
       // 初始化画布大小
       initCanvasSize() {
-        const dpr = (window.devicePixelRatio || 1); // 获取设备像素比
+        const dpr = this.dpr || (window.devicePixelRatio || 1); // 获取设备像素比
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
       

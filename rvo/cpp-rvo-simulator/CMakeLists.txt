@@ -27,9 +27,17 @@ add_executable(rvo_simulator ${SOURCES})
 
 # 编译选项
 if(MSVC)
-    target_compile_options(rvo_simulator PRIVATE /W4 /EHsc)
+    target_compile_options(rvo_simulator PRIVATE /W4 /EHsc $<$<CONFIG:Release>:/O2 /GL> $<$<CONFIG:RelWithDebInfo>:/O2 /GL>)
+    target_link_options(rvo_simulator PRIVATE $<$<CONFIG:Release>:/LTCG> $<$<CONFIG:RelWithDebInfo>:/LTCG>)
 else()
-    target_compile_options(rvo_simulator PRIVATE -Wall -Wextra -pedantic)
+    target_compile_options(rvo_simulator PRIVATE -Wall -Wextra -pedantic $<$<CONFIG:Release>:-O3 -DNDEBUG -march=native> $<$<CONFIG:RelWithDebInfo>:-O3 -DNDEBUG -march=native>)
+
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_message)
+    if(ipo_supported)
+        set_property(TARGET rvo_simulator PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+        set_property(TARGET rvo_simulator PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
+    endif()
 endif()
 
 # 安装

@@ -7,6 +7,7 @@
 #include <map>
 #include <utility>
 #include "nav_grid.h"
+#include "json.hpp"
 
 namespace rvocpp {
 
@@ -57,8 +58,20 @@ namespace rvocpp {
         RVOSimulator();
         ~RVOSimulator();
 
-        // 从JSON文件加载配置
+        // 从JSON文件加载配置（兼容旧流程）
         bool loadFromJSON(const std::string& jsonPath);
+
+        // 从 JSON 字符串加载配置（供 JNI 调用）
+        bool loadFromJSONContent(const std::string& jsonContent);
+
+        // 直接从内存结构加载配置（用于 JNI）
+        bool loadFromData(const SimulationConfig& config,
+                          std::vector<Agent> agents,
+                          std::vector<Obstacle> obstacles,
+                          std::vector<Exit> exits,
+                          std::vector<NavPoint> navPoints,
+                          std::vector<RoomC> rooms,
+                          std::vector<PeopleGroupC> peopleGroups);
 
         // 设置输出目录（由调用者提供）
         void setOutputDir(const std::string& outputDir);
@@ -68,6 +81,9 @@ namespace rvocpp {
 
         // 保存结果文件
         bool saveResults();
+
+        int frameCount() const { return static_cast<int>(frames_.size()); }
+        int completedAgentCount() const { return static_cast<int>(completedEvents_.size()); }
 
     private:
         struct ActiveAgent {
@@ -95,8 +111,10 @@ namespace rvocpp {
         int currentStep_;
         int maxSteps_;
         std::vector<int> waitingList_;  // 等待进入的agent索引
+        std::size_t waitingCursor_ = 0;
         std::vector<std::pair<double, double>> agentGoals_;
         std::vector<bool> agentCompleted_;
+        std::vector<char> isActive_;
         float goalThreshold_;
 
         // 结果数据
@@ -130,7 +148,10 @@ namespace rvocpp {
         std::pair<double, double> getCurrentTarget(int agentIndex) const;
         bool agentHasWaypoints(int agentIndex) const;
         std::pair<double, double> getExitCenter(int exitId) const;
+        void captureFrame();
         bool writeRawSimulationJson(const std::string& outputDir) const;
+        bool rebuildNavigationState();
+        bool loadFromJsonData(const nlohmann::json& data);
     };
 }
 

@@ -42,6 +42,30 @@ bool RVOSimulator::loadFromJSON(const std::string& jsonPath) {
         return false;
     }
 
+    if (!loadFromJsonData(data)) {
+        return false;
+    }
+
+    if (config_.outputDir.empty()) {
+        std::filesystem::path jsonDir = std::filesystem::path(jsonPath).parent_path();
+        config_.outputDir = jsonDir.string();
+    }
+
+    return true;
+}
+
+bool RVOSimulator::loadFromJSONContent(const std::string& jsonContent) {
+    json data;
+    try {
+        data = json::parse(jsonContent);
+    } catch (const std::exception& ex) {
+        std::cerr << "Failed to parse JSON content: " << ex.what() << std::endl;
+        return false;
+    }
+    return loadFromJsonData(data);
+}
+
+bool RVOSimulator::loadFromJsonData(const json& data) {
     config_.bID = data.value("bID", 0);
     config_.scale = data.value("scale", 1.0);
     config_.status = data.value("status", 1);
@@ -51,6 +75,9 @@ bool RVOSimulator::loadFromJSON(const std::string& jsonPath) {
     config_.imgX0 = data.value("imgX0", 0.0);
     config_.imgY0 = data.value("imgY0", 0.0);
     config_.sT = data.value("sT", 0.0);
+    if (data.contains("outputDir") && data["outputDir"].is_string()) {
+        config_.outputDir = data["outputDir"].get<std::string>();
+    }
 
     agents_.clear();
     if (data.contains("agents") && data["agents"].is_array()) {
@@ -175,82 +202,104 @@ bool RVOSimulator::loadFromJSON(const std::string& jsonPath) {
         }
     }
 
-    // 构建 NavGrid（复制数据至 NavGrid 所需的结构）
-    std::vector<NavPointC> navPointsForGrid;
-    navPointsForGrid.reserve(navPoints_.size());
-    for (const auto& nav : navPoints_) {
-        navPointsForGrid.push_back(NavPointC{nav.x, nav.y, nav.state, nav.roomIds});
-    }
-
-    std::vector<ObstacleC> obstaclesForGrid;
-    obstaclesForGrid.reserve(obstacles_.size());
-    for (const auto& ob : obstacles_) {
-        obstaclesForGrid.push_back(ObstacleC{ob.x1, ob.y1, ob.x2, ob.y2});
-    }
-
-    std::vector<ExitC> exitsForGrid;
-    exitsForGrid.reserve(exits_.size());
-    for (const auto& exit : exits_) {
-        ExitC exitC;
-        exitC.cx = (exit.x0 + exit.x1) / 2.0;
-        exitC.cy = (exit.y0 + exit.y1) / 2.0;
-        exitC.id = static_cast<int>(exit.id);
-        exitsForGrid.push_back(exitC);
-    }
-
-    navGrid_ = std::make_unique<NavGrid>(navPointsForGrid, obstaclesForGrid, exitsForGrid, rooms_, peopleGroups_);
-    navLines_ = navGrid_->generateLines();
-
-    // 依据 NavGrid 为每个 agent 生成 waypoint
-    for (auto& agent : agents_) {
-        ::std::pair<double, double> entryPos{agent.x, agent.y};
-        int nearestVertex = navGrid_->findClosestGraphVertex(entryPos.first, entryPos.second, true);
-        agent.graphNodeIndex = nearestVertex;
-        agent.waypointXs.clear();
-        agent.waypointYs.clear();
-        agent.waypointCursor = 0;
-
-        if (nearestVertex >= 0) {
-            auto coords = navGrid_->getWaypointCoordinates(agent.exitId, nearestVertex);
-            // NavGrid 返回从当前点通往出口的导航点，按顺序写入
-            for (const auto& [wx, wy] : coords) {
-                agent.waypointXs.push_back(wx);
-                agent.waypointYs.push_back(wy);
-            }
-        } else {
-            // 无直接可达导航点，则尝试直接以出口中心为目标
-            auto center = navGrid_->getExitCenter(agent.exitId);
-            agent.waypointXs.push_back(center.first);
-            agent.waypointYs.push_back(center.second);
-        }
-    }
-
-    // 初始化等待列表和目标
+    frames_.clear();
+    completedEvents_.clear();
+    activeAgents_.clear();
     waitingList_.clear();
-    waitingList_.reserve(agents_.size());
-    for (size_t i = 0; i < agents_.size(); ++i) {
-        waitingList_.push_back(static_cast<int>(i));
-    }
-    std::sort(waitingList_.begin(), waitingList_.end(), [&](int lhs, int rhs) {
-        return agents_[lhs].startTime < agents_[rhs].startTime;
-    });
+    agentGoals_.clear();
+    agentCompleted_.clear();
+    isActive_.clear();
 
-    agentGoals_.assign(agents_.size(), std::make_pair(0.0, 0.0));
-    for (size_t i = 0; i < agents_.size(); ++i) {
-        agentGoals_[i] = getExitCenter(agents_[i].exitId);
-    }
-    agentCompleted_.assign(agents_.size(), false);
+    return rebuildNavigationState();
+}
 
-    if (config_.outputDir.empty()) {
-        std::filesystem::path jsonDir = std::filesystem::path(jsonPath).parent_path();
-        config_.outputDir = jsonDir.string();
-    }
+bool RVOSimulator::loadFromData(const SimulationConfig& config,
+                                std::vector<Agent> agents,
+                                std::vector<Obstacle> obstacles,
+                                std::vector<Exit> exits,
+                                std::vector<NavPoint> navPoints,
+                                std::vector<RoomC> rooms,
+                                std::vector<PeopleGroupC> peopleGroups) {
+    config_ = config;
+    agents_ = std::move(agents);
+    obstacles_ = std::move(obstacles);
+    exits_ = std::move(exits);
+    navPoints_ = std::move(navPoints);
+    rooms_ = std::move(rooms);
+    peopleGroups_ = std::move(peopleGroups);
 
-    return true;
+    return rebuildNavigationState();
 }
 
 void RVOSimulator::setOutputDir(const std::string& outputDir) {
     config_.outputDir = outputDir;
+}
+
+bool RVOSimulator::rebuildNavigationState() {
+    try {
+        std::vector<NavPointC> navPointsC;
+        navPointsC.reserve(navPoints_.size());
+        for (const auto& p : navPoints_) {
+            NavPointC np;
+            np.x = p.x;
+            np.y = p.y;
+            np.state = p.state;
+            np.roomIds = p.roomIds;
+            navPointsC.push_back(std::move(np));
+        }
+
+        std::vector<ObstacleC> obstaclesC;
+        obstaclesC.reserve(obstacles_.size());
+        for (const auto& o : obstacles_) {
+            ObstacleC ob;
+            ob.x1 = o.x1;
+            ob.y1 = o.y1;
+            ob.x2 = o.x2;
+            ob.y2 = o.y2;
+            obstaclesC.push_back(ob);
+        }
+
+        std::vector<ExitC> exitsC;
+        exitsC.reserve(exits_.size());
+        for (const auto& e : exits_) {
+            ExitC ex;
+            ex.cx = (e.x0 + e.x1) * 0.5;
+            ex.cy = (e.y0 + e.y1) * 0.5;
+            ex.id = static_cast<int>(e.id);
+            exitsC.push_back(ex);
+        }
+
+        navGrid_ = std::make_unique<NavGrid>(navPointsC, obstaclesC, exitsC, rooms_, peopleGroups_);
+        navLines_ = navGrid_->generateLines();
+
+        frames_.clear();
+        completedEvents_.clear();
+        activeAgents_.clear();
+
+        waitingList_.clear();
+        waitingList_.reserve(agents_.size());
+        for (int i = 0; i < static_cast<int>(agents_.size()); ++i) {
+            waitingList_.push_back(i);
+        }
+        std::sort(waitingList_.begin(), waitingList_.end(), [&](int a, int b) {
+            return agents_[a].startTime < agents_[b].startTime;
+        });
+        waitingCursor_ = 0;
+
+        agentGoals_.assign(agents_.size(), {0.0, 0.0});
+        for (int i = 0; i < static_cast<int>(agents_.size()); ++i) {
+            agentGoals_[i] = getExitCenter(agents_[i].exitId);
+        }
+
+        agentCompleted_.assign(agents_.size(), false);
+        isActive_.assign(agents_.size(), 0);
+
+        currentStep_ = 0;
+
+        return true;
+    } catch (...) {
+        return false;
+    }
 }
 
 bool RVOSimulator::run() {
@@ -258,26 +307,29 @@ bool RVOSimulator::run() {
 
     while (currentStep_ < maxSteps_) {
         // 1. 按 startTime 将 agent 加入模拟
-        while (!waitingList_.empty()) {
-            int agentIndex = waitingList_.front();
+        while (waitingCursor_ < waitingList_.size()) {
+            int agentIndex = waitingList_[waitingCursor_];
             if (agents_[agentIndex].startTime * 100.0 <= currentStep_) {
                 addAgentToSimulator(agentIndex);
-                waitingList_.erase(waitingList_.begin());
+                ++waitingCursor_;
             } else {
                 break;
             }
         }
 
-        // 2. 记录当前帧位置
-        FrameData frame;
-        frame.step = currentStep_;
-        for (const auto& active : activeAgents_) {
-            int agentIndex = active.agentIndex;
-            if (agentIndex >= 0 && agentIndex < static_cast<int>(agents_.size())) {
-                frame.positions.push_back({agents_[agentIndex].id, {active.x, active.y}});
+        // 2. 记录当前帧位置（采样：每 2 个仿真步记录一次，保持时间步长不变但将帧率从 4 降到 2）
+        if ((currentStep_ % 2) == 0) {
+            FrameData frame;
+            frame.step = currentStep_;
+            frame.positions.reserve(activeAgents_.size());
+            for (const auto& active : activeAgents_) {
+                int agentIndex = active.agentIndex;
+                if (agentIndex >= 0 && agentIndex < static_cast<int>(agents_.size())) {
+                    frame.positions.push_back({agents_[agentIndex].id, {active.x, active.y}});
+                }
             }
+            frames_.push_back(std::move(frame));
         }
-        frames_.push_back(std::move(frame));
 
         // 3. 更新完成状态
         updateCompletedAgents();
@@ -326,12 +378,13 @@ bool RVOSimulator::saveResults() {
         return false;
     }
 
+    resultFile << std::fixed << std::setprecision(2);
+
     int frameIndex = 0;
     for (const auto& frame : frames_) {
         resultFile << frameIndex << " " << frame.positions.size();
         for (const auto& pos : frame.positions) {
             resultFile << " " << pos.first << " "
-                      << std::fixed << std::setprecision(2)
                       << pos.second.first << " " << pos.second.second;
         }
         resultFile << std::endl;
@@ -387,13 +440,19 @@ bool RVOSimulator::agentHasWaypoints(int agentIndex) const {
 
 void RVOSimulator::initializeSimulator() {
     currentStep_ = 0;
+    waitingCursor_ = 0;
     frames_.clear();
+    frames_.reserve(static_cast<size_t>(maxSteps_) + 1);
     completedEvents_.clear();
+    completedEvents_.reserve(agents_.size());
     activeAgents_.clear();
+    activeAgents_.reserve(agents_.size());
 
     for (auto& agent : agents_) {
         agent.waypointCursor = std::min(agent.waypointCursor, agent.waypointXs.size());
     }
+
+    std::fill(isActive_.begin(), isActive_.end(), 0);
 
     double maxAgentSpeed = 0.0;
     for (const auto& agent : agents_) {
@@ -407,10 +466,7 @@ void RVOSimulator::addAgentToSimulator(int agentIndex) {
     if (agentIndex < 0 || agentIndex >= static_cast<int>(agents_.size())) {
         return;
     }
-    auto existing = std::find_if(activeAgents_.begin(), activeAgents_.end(), [&](const ActiveAgent& a) {
-        return a.agentIndex == agentIndex;
-    });
-    if (existing != activeAgents_.end()) {
+    if (agentIndex < static_cast<int>(isActive_.size()) && isActive_[agentIndex]) {
         return;
     }
 
@@ -422,6 +478,9 @@ void RVOSimulator::addAgentToSimulator(int agentIndex) {
     active.vx = 0.0;
     active.vy = 0.0;
     activeAgents_.push_back(active);
+    if (agentIndex < static_cast<int>(isActive_.size())) {
+        isActive_[agentIndex] = 1;
+    }
 }
 
 void RVOSimulator::stepAgents() {
@@ -548,7 +607,13 @@ void RVOSimulator::updateCompletedAgents() {
     if (anyRemoval) {
         activeAgents_.erase(std::remove_if(activeAgents_.begin(), activeAgents_.end(), [&](const ActiveAgent& active) {
             int idx = active.agentIndex;
-            return idx >= 0 && idx < static_cast<int>(agentCompleted_.size()) && agentCompleted_[idx];
+            if (idx >= 0 && idx < static_cast<int>(agentCompleted_.size()) && agentCompleted_[idx]) {
+                if (idx < static_cast<int>(isActive_.size())) {
+                    isActive_[idx] = 0;
+                }
+                return true;
+            }
+            return false;
         }), activeAgents_.end());
     }
 }
@@ -608,14 +673,15 @@ bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
         return false;
     }
 
-    json root;
-    root["meta"] = {
-        {"timeStep", kTimeStep},
-        {"totalFrames", static_cast<int>(frames_.size())},
-        {"totalAgents", static_cast<int>(agents_.size())}
-    };
+    fs::path rawPath = fs::path(outputDir) / "simulation_raw.json";
+    std::ofstream rawFile(rawPath);
+    if (!rawFile.is_open()) {
+        return false;
+    }
 
-    root["config"] = {
+    rawFile << "{\n";
+
+    json config = {
         {"bID", config_.bID},
         {"scale", config_.scale},
         {"status", config_.status},
@@ -626,24 +692,12 @@ bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
         {"sT", config_.sT},
         {"fileName", config_.fileName}
     };
+    rawFile << "  \"config\": " << config.dump() << ",\n";
 
-    json agentsJson = json::array();
-    for (const auto& agent : agents_) {
-        agentsJson.push_back({
-            {"id", agent.id},
-            {"x", agent.x},
-            {"y", agent.y},
-            {"velocity", agent.velocity},
-            {"startTime", agent.startTime},
-            {"exitId", agent.exitId},
-            {"roomIds", agent.roomIds}
-        });
-    }
-    root["agents"] = agentsJson;
-
-    json exitsJson = json::array();
-    for (const auto& exit : exits_) {
-        exitsJson.push_back({
+    rawFile << "  \"exits\": [\n";
+    for (size_t i = 0; i < exits_.size(); ++i) {
+        const auto& exit = exits_[i];
+        json exitJson = {
             {"id", exit.id},
             {"x0", exit.x0},
             {"y0", exit.y0},
@@ -651,12 +705,21 @@ bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
             {"y1", exit.y1},
             {"capacity", exit.capacity},
             {"name", exit.name}
-        });
+        };
+        rawFile << "    " << exitJson.dump();
+        if (i + 1 < exits_.size()) {
+            rawFile << ",";
+        }
+        rawFile << "\n";
     }
-    root["exits"] = exitsJson;
+    rawFile << "  ],\n";
 
-    json framesJson = json::array();
-    for (const auto& frame : frames_) {
+    rawFile << "  \"frames\": [\n";
+    for (size_t i = 0; i < frames_.size(); ++i) {
+        const auto& frame = frames_[i];
+        json frameJson;
+        frameJson["index"] = frame.step;
+        frameJson["time"] = frame.step * kTimeStep;
         json agentsArray = json::array();
         for (const auto& pos : frame.positions) {
             agentsArray.push_back({
@@ -665,32 +728,33 @@ bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
                 {"y", pos.second.second}
             });
         }
-        framesJson.push_back({
-            {"index", frame.step},
-            {"time", frame.step * kTimeStep},
-            {"agents", agentsArray}
-        });
+        frameJson["agents"] = std::move(agentsArray);
+        rawFile << "    " << frameJson.dump();
+        if (i + 1 < frames_.size()) {
+            rawFile << ",";
+        }
+        rawFile << "\n";
     }
-    root["frames"] = framesJson;
+    rawFile << "  ],\n";
 
-    json completedJson = json::array();
-    for (const auto& event : completedEvents_) {
-        completedJson.push_back({
+    rawFile << "  \"completedEvents\": [\n";
+    for (size_t i = 0; i < completedEvents_.size(); ++i) {
+        const auto& event = completedEvents_[i];
+        json eventJson = {
             {"agentId", event.agentId},
             {"exitId", event.exitId},
             {"frame", event.frameIndex},
             {"time", event.time}
-        });
+        };
+        rawFile << "    " << eventJson.dump();
+        if (i + 1 < completedEvents_.size()) {
+            rawFile << ",";
+        }
+        rawFile << "\n";
     }
-    root["completedEvents"] = completedJson;
+    rawFile << "  ]\n";
 
-    fs::path rawPath = fs::path(outputDir) / "simulation_raw.json";
-    std::ofstream rawFile(rawPath);
-    if (!rawFile.is_open()) {
-        return false;
-    }
-
-    rawFile << root.dump(2);
+    rawFile << "}\n";
     rawFile.close();
     return true;
 }
