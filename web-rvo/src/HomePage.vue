@@ -222,7 +222,7 @@ body {
     background: white;
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    border: 2px solid #cfe8ff; /* 浅蓝边框 */
+    border: none;
     overflow: hidden;
     transition: all 0.3s ease;
     cursor: pointer;

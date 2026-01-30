@@ -3,9 +3,9 @@
     <div ref="div" class="project-header">
       <div class="button-row">
         <!-- 项目管理按钮组 -->
-        <div class="button-group primary-group">
+        <div class="button-group">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
-            <el-button type="primary">
+            <el-button>
               项目管理<i class="el-icon-arrow-down el-icon--right"></i>
             </el-button>
             <el-dropdown-menu slot="dropdown">
@@ -16,11 +16,11 @@
             </el-dropdown-menu>
           </el-dropdown>
         </div>
-        
+
         <!-- 场景构建按钮组 -->
-        <div class="button-group success-group">
+        <div class="button-group">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
-            <el-button type="success">
+            <el-button>
               场景构建<i class="el-icon-arrow-down el-icon--right"></i>
             </el-button>
             <el-dropdown-menu slot="dropdown">
@@ -35,9 +35,9 @@
         </div>
         
         <!-- 模拟执行按钮组 -->
-        <div class="button-group warning-group">
+        <div class="button-group">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
-            <el-button type="warning">
+            <el-button>
               模拟执行<i class="el-icon-arrow-down el-icon--right"></i>
             </el-button>
             <el-dropdown-menu slot="dropdown">
@@ -49,7 +49,7 @@
           </el-dropdown>
           
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
-            <el-button type="warning">
+            <el-button>
               方案比选<i class="el-icon-arrow-down el-icon--right"></i>
             </el-button>
             <el-dropdown-menu slot="dropdown">
@@ -62,10 +62,9 @@
           </el-dropdown>
         </div>
         
-        <!-- 结果展示按钮组 -->
-        <div class="button-group primary-group">
+        <div class="button-group">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
-            <el-button type="primary">
+            <el-button>
               结果展示<i class="el-icon-arrow-down el-icon--right"></i>
             </el-button>
             <el-dropdown-menu slot="dropdown">
@@ -80,7 +79,7 @@
           </el-dropdown>
           
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
-            <el-button type="primary">
+            <el-button>
               设置<i class="el-icon-arrow-down el-icon--right"></i>
             </el-button>
             <el-dropdown-menu slot="dropdown">
@@ -89,23 +88,40 @@
             </el-dropdown-menu>
           </el-dropdown>
         </div>
-        
-        <!-- 退出按钮 -->
-        <div class="button-group danger-group">
-          <el-button type="danger" :disabled="TID==10" @click="handleExit()">退出</el-button>
+
+        <!-- Animation Controls (right aligned, after all dropdowns) -->
+        <div v-if="TID==11 || TID==19" class="animation-controls-wrapper">
+          <div class="animation-controls">
+            <el-button
+              v-if="show.nowBusy==0"
+              size="small"
+              type="primary"
+              @click="togglePlayback"
+              :icon="playButtonIcon()"
+              circle
+            ></el-button>
+            <el-button v-if="show.nowBusy==1" size="small" type="primary" icon="el-icon-loading" circle></el-button>
+            <div class="speed-control">
+              <span>倍速</span>
+              <el-select v-model="playbackSpeed" size="small" @change="applyPlaybackSpeed" class="speed-select">
+                <el-option v-for="opt in playbackSpeedOptions" :key="opt.value" :label="opt.label" :value="opt.value"></el-option>
+              </el-select>
+            </div>
+            <el-button size="small" type="danger" @click="exitAnimation">停止演示</el-button>
+          </div>
         </div>
+        
       </div>
     </div>
     <div>
     </div>
-    <div class="state" style="display: flex;justify-content: center;margin-left: 10px;margin-top: 10px;color:rgb(255,255,255)">
+    <div class="state" style="display: flex;justify-content: center;margin-left: 10px;margin-top: 10px;color:#606266">
       <div v-if="isUpdate==1&& TID!=10"><i class="el-icon-loading"></i>&ensp;&ensp;更新中</div>
-      <div v-if="isUpdate==0&& TID!=10" style="color: green"><i class="el-icon-success" ></i>&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;</div>
-      <div v-if="isUpdate==-1&& TID!=10" style="color: red"><i class="el-icon-error" ></i>校验错误</div>
+      <div v-if="isUpdate==0&& TID!=10" style="color: #67C23A"><i class="el-icon-success" ></i>&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;</div>
+      <div v-if="isUpdate==-1&& TID!=10" style="color: #F56C6C"><i class="el-icon-error" ></i>校验错误</div>
       <div v-if="isUpdate==0 && TID==10"><i class="el-icon-loading"></i>{{ up.stageMessage || '演算中' }}</div>
     </div>
     
-    <hr style="border:none;height:2px;background-color:rgb(70,130,180)">
 
     <div ref="div2">
       <!-- <el-checkbox v-model="viewInfo.isViewRoom" label="房间图层"></el-checkbox>
@@ -123,14 +139,6 @@
       <el-switch v-model="navEdit.showPoints" active-text="显示导航点" inactive-text="隐藏导航点"></el-switch>
       <el-button type="danger" size="mini" :disabled="navEdit.selectedIndex<0" @click="deleteSelectedNavPoint">删除选中导航点</el-button>
       <el-button type="primary" size="mini" @click="finishNavEdit">结束编辑</el-button>
-    </div>
-    <div v-if="TID==11 || TID==19" style="display:flex;position: fixed;bottom: 0;width:100%;height:40px;background-color: rgb(56,78,62);align-items: center;">
-      <el-button v-if="TID==11&&show.nowBusy==0" style="border: none;font-size: 12px;margin-left: 5px;margin-top: 2px;margin-bottom: 2px" @click="play(show.nowTime)" icon="el-icon-video-play" circle></el-button>
-      <el-button v-if="TID==19&&show.nowBusy==0" style="border: none;font-size: 12px;margin-left: 5px;margin-top: 2px;margin-bottom: 2px" @click="TID=11" icon="el-icon-video-pause" circle></el-button>
-      <el-button v-if="show.nowBusy==1" style="border: none;font-size: 12px;margin-left: 5px;margin-top: 2px;margin-bottom: 2px" icon="el-icon-loading" circle></el-button>
-      <el-slider @mousedown.native="te" v-model="show.nowTime" :max="show.totalTime" style="width:calc(100% - 180px);margin-left: 20px;"
-      :change="jump()"></el-slider>
-      <el-button type="danger" style="margin-right: 10px;margin-left: 10px;font-size: 12px;padding: 8px 15px;" @click="exitAnimation">停止演示</el-button>
     </div>
     <div v-if="dialogVisible_attr">
       <el-dialog
@@ -1456,8 +1464,8 @@
 .button-row {
   display: flex;
   align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
+  gap: 12px;
+  flex-wrap: nowrap;
 }
 
 /* 按钮组样式 */
@@ -1465,6 +1473,17 @@
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.button-group .el-button {
+  background-color: #f5f5f5; /* White-gray background */
+  color: #000000; /* Black text */
+  border-color: #dcdfe6;
+}
+
+.button-group .el-button:hover {
+  background-color: #e8e8e8;
+  border-color: #c0c4cc;
 }
 
 /* 不同颜色按钮组之间的间距 */
@@ -1482,6 +1501,31 @@
 
 .danger-group {
   margin-left: auto;
+}
+
+/* Animation controls right aligned */
+.animation-controls-wrapper {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.animation-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #2c3e50;
+  font-size: 12px;
+}
+
+.speed-select {
+  width: 90px;
 }
 
 /* 移除按钮边框 */

@@ -384,6 +384,15 @@ import html2canvas from 'html2canvas' ;
             file:'1',
             status:1
           },
+          animationState: 'paused', // paused, playing, finished
+          playbackSpeed:1,
+          playbackSpeedOptions:[
+            { label:'0.5x', value:0.5 },
+            { label:'1x', value:1 },
+            { label:'2x', value:2 },
+            { label:'3x', value:3 },
+            { label:'5x', value:5 }
+          ],
 
           newarea:{
             x0:0,y0:0,x1:0,y1:0,x2:0,y2:0,x3:0,y3:0,
@@ -1168,13 +1177,8 @@ import html2canvas from 'html2canvas' ;
     mounted() {
       
       this.canvas = this.$refs.canvas;
-      //
       this.dpr = window.devicePixelRatio || 1;
       const dpr = this.dpr;
-      // var screenWidth = window.innerWidth;
-      //var screenHeight = window.innerHeight;
-      // const width = screenWidth;
-      // const height = width*this.viewInfo.imgY1-this.viewInfo.imgY0/(this.viewInfo.imgX1-this.viewInfo.imgX0);
       const width = this.canvas.offsetWidth;
       const height = this.canvas.offsetHeight;
       console.log("画布大小" + width);
@@ -1587,7 +1591,7 @@ import html2canvas from 'html2canvas' ;
         },
         check(){
           this.isValid=false;
-          var that = this;
+          var that = this 
           if(this.pointsNav.length==0){ 
             that.$notify({
               title: '注意',
@@ -1894,7 +1898,7 @@ import html2canvas from 'html2canvas' ;
         },
         agreeChange_12(val){
           let that = this 
-          this.initShow_1();
+          this.initShow_12();
           that.btnstatus=(val==='graph')?true:false;
           if(this.tabPosition!='graph'){
             this.initShow_12();
@@ -2144,7 +2148,8 @@ import html2canvas from 'html2canvas' ;
                         }
                     },
                   };
-                  // //图表数据载入
+
+                  //图表数据载入
                   // for(let i=0;i<res.data.data.exits.length;i++){
                   //   // alert(res.data.data.exits[i].name)
                   //   dat.legend.data.push(res.data.data.exits[i].name);
@@ -2316,6 +2321,9 @@ import html2canvas from 'html2canvas' ;
                 let timeIntervals = res.data.data.time.filter((time, index) => index % 3 === 0);
                 // 绘制图表
                 var dat = {
+                  title: {
+                    text: '撤离人数-时间'
+                  },
                   tooltip: {},
                   xAxis: {
                     name:'时间/s',
@@ -2337,13 +2345,6 @@ import html2canvas from 'html2canvas' ;
                       mark: { show: true },
                       saveAsImage: { show: true },
                     }
-                  },
-                  grid: {
-                    top: '100px', // 调整顶部距离，为图例留出空间
-                    left: '3%',
-                    right: '4%',
-                    bottom: '3%',
-                    containLabel: true
                   },
                 };
                 //let all_exit = res.data.data.exits[res.data.data.exits.length-1].data[res.data.data.exits[res.data.data.exits.length-1].data.length-1]
@@ -2622,7 +2623,7 @@ import html2canvas from 'html2canvas' ;
                       data: res.data.data.time
                     },
                     yAxis: {
-                      name:'受照剂量/mSv',
+                      name:'受照剂量/mSV',
                       type:'value',
                       scale:true,
                     },
@@ -4206,7 +4207,7 @@ import html2canvas from 'html2canvas' ;
             data:{
               bID:this.$route.params.bID,
               selectMethod:this.selectM,
-              selectMethods:this.old_selectMethod,
+              selectMethods:[this.selectM]
             }
           }).then((res) =>{
             console.log(res.data.message);
@@ -4304,8 +4305,9 @@ import html2canvas from 'html2canvas' ;
             file: playbackFile,
             status
           };
+          this.animationState = 'paused';
+          this.TID = 11;
           this.dialogVisible_2 = false;
-          this.startAnimationPlayback(this.playbackConfig);
         },
         async prepareCustomPlaybackPlan(method){
           if(!method){
@@ -4333,12 +4335,38 @@ import html2canvas from 'html2canvas' ;
             personal:'playBack_2'
           };
           const handler = map[scheme] || 'playBack';
-          this.TID = 11;
+          // 根据当前倍速调整帧间隔
+          this.applyPlaybackSpeed();
+          this.animationState = 'playing';
+          this.TID = 19;
           if(typeof this[handler] === 'function'){
             this[handler](payload);
           }else{
             this.$message.error('未找到对应的动画处理方法');
           }
+        },
+        playButtonIcon() {
+          return this.animationState === 'paused'
+            ? 'el-icon-video-play'
+            : 'el-icon-video-pause';
+        },
+        togglePlayback() {
+          if (this.show.nowBusy === 1) return;
+          if (this.animationState === 'playing') {
+            this.TID = 11; // pause
+            this.animationState = 'paused';
+          } else {
+            this.applyPlaybackSpeed();
+            this.animationState = 'playing';
+            this.startAnimationPlayback(this.playbackConfig);
+          }
+        },
+        // 调整动画播放倍速（通过帧间隔控制）
+        applyPlaybackSpeed(){
+          const speed = this.playbackSpeed || 1;
+          const baseFps = 30;
+          this.show.targetFps = Math.round(baseFps * speed);
+          this.show.frameInterval = 1000 / this.show.targetFps;
         },
       
         refresh(){
@@ -4512,8 +4540,15 @@ import html2canvas from 'html2canvas' ;
     //退出动画演示
     exitAnimation(){
       // 关闭WebSocket连接
-      if(this.socket && this.socket.readyState === WebSocket.OPEN){
-        this.socket.close();
+      if(this.socket){
+        try{
+          this.socket.disconnect();
+        }catch(e){
+          console.log(e);
+        }
+        if(this.socket.readyState === WebSocket.OPEN){
+          this.socket.close();
+        }
       }
       // 停止播放
       this.show.nowBusy=0;
@@ -8056,10 +8091,9 @@ if(this.TID==31||this.TID==29){
         this.isDrawing=0;//渲染标识
         const endTime = new Date();
         const executionTime = endTime - startTime;
-        console.log(`代码执行时间：${executionTime} 毫秒`);
-        
-        
+        console.log(`代码执行时间：${executionTime} 毫秒`);        
       },
+      
       // 初始化画布大小
       initCanvasSize() {
         const dpr = this.dpr || (window.devicePixelRatio || 1); // 获取设备像素比
@@ -8173,23 +8207,7 @@ if(this.TID==31||this.TID==29){
 
       async wait() {
         return new Promise(resolve => {
-          const fallback = () => setTimeout(() => resolve(1), this.show.frameInterval || 33);
-          if (typeof requestAnimationFrame === 'function') {
-            requestAnimationFrame((timestamp) => {
-              if (!this.show.lastFrameTime) {
-                this.show.lastFrameTime = timestamp;
-                resolve(1);
-                return;
-              }
-              const interval = this.show.frameInterval || 33;
-              const delta = timestamp - this.show.lastFrameTime;
-              this.show.lastFrameTime = timestamp;
-              const frames = Math.min(this.show.maxCatchupFrames || 3, Math.max(1, Math.round(delta / interval)));
-              resolve(frames);
-            });
-          } else {
-            fallback();
-          }
+          setTimeout(() => resolve(1), this.show.frameInterval || 33);
         });
       },
       async deadlock() {
@@ -8600,9 +8618,11 @@ if(this.TID==31||this.TID==29){
                   this.d5 = runtimeLiteralParseHelper(e.target.result);  
                 });
               }
+              // 关闭加载框后自动从第0帧开始播放
               setTimeout(() => {  
                 loading.close();
-            }, 1000);
+                this.play(0);
+              }, 1000);
             })
             .catch((error)=> {
               this.$notify.error({
@@ -8950,7 +8970,18 @@ if(this.TID==31||this.TID==29){
           await this.deadlock();
         }
       }
-      this.socket.disconnect();
+      // 安全关闭 WebSocket 连接
+      if(this.socket){
+        try{
+          if (typeof this.socket.close === 'function') {
+            this.socket.close();
+          } else if (typeof this.socket.disconnect === 'function') {
+            this.socket.disconnect();
+          }
+        }catch(e){
+          console.log(e);
+        }
+      }
     },
     async alwaysRun_local(){
       let i = this.show.frameNum;
@@ -8968,47 +8999,41 @@ if(this.TID==31||this.TID==29){
       this.show.lastFrameTime = 0;
     },
     async alwaysRun(){
-      let i=1;
-      while(i==1){
-        while(this.show.clipData.length==0){
-          this.show.nowBusy=1;
-          if(this.show.nowTime==this.show.totalTime){ 
-            this.show.nowBusy=0;
-            this.TID=11;
-            return;
-          }
-          if(this.TID==0)return;
-          this.show.lastFrameTime = 0;
-          await this.deadlock();
-        }
-        this.show.nowBusy=0;
+      while (this.show.clipData.length > 0) {
         const currentClip = this.show.clipData[0];
-        if(!currentClip){
+        if (!currentClip) {
+          this.show.clipData.shift();
           continue;
         }
+    
         let frameIndex = this.show.frameNum;
-        while(frameIndex < currentClip.length){
-          this.show.showPeople=currentClip[frameIndex];
+        while (frameIndex < currentClip.length) {
+          this.show.showPeople = currentClip[frameIndex];
           this.draw();
-          this.show.nowTime+=1;
+          this.show.nowTime += 1;
+    
           const advance = await this.wait();
-          if(this.TID==11 || this.TID==0){
+          if (this.TID === 11 || this.TID === 0) {
             this.show.lastFrameTime = 0;
-            return;
+            return; // Paused or stopped
           }
           frameIndex += advance || 1;
         }
-        this.show.frameNum=0;//偏移复位
+    
+        this.show.frameNum = 0; // Reset for next clip
         this.show.clipData.shift();
-        if(this.show.clipData.length===0){
-          this.show.lastFrameTime = 0;
-        }
       }
+    
+      // End of animation
+      this.TID = 11; // Set to paused state
+      this.animationState = 'finished';
+      this.show.nowBusy = 0;
+      this.show.lastFrameTime = 0;
     },
+    // 进度条跳转：基于当前播放模式重启播放到指定时间点
+    // 进度条功能已移除
     jump(){
-      if(this.TID==11){
-        return;
-      }  
+      return;
     },
     init_show(){
       this.show = {
