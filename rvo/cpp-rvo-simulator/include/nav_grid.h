@@ -19,6 +19,7 @@ namespace rvocpp {
         double x;
         double y;
         int state;                    // 0: in room, 1: outside, etc.
+        int floorId {0};
         std::vector<int> roomIds;     // 对应 Java Pos.room_id
     };
 
@@ -26,20 +27,24 @@ namespace rvocpp {
         double cx;
         double cy;
         int id;
+        int floorId {0};
     };
 
     struct ObstacleC {
         double x1, y1, x2, y2;
+        int floorId {0};
     };
 
     struct RoomC {
         int rid {0};
+        int floorId {0};
         std::vector<Point2D> walls;  // 有效墙体顶点顺序排列
         int peopleCount {0};         // 房间内人口数量（peos.size）
     };
 
     struct PeopleGroupC {
         int id {0};
+        int floorId {0};
         std::vector<Point2D> walls;  // 人口框墙体
         int peopleCount {0};
     };

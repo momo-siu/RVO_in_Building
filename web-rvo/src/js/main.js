@@ -6,6 +6,7 @@ import saveAs from 'file-saver'
 // import Heatmap from 'heatmap.js';
 import simpleheat from 'simpleheat';  
 import html2canvas from 'html2canvas' ;
+import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
 
 // import Vue from 'vue';
 
@@ -135,7 +136,23 @@ import html2canvas from 'html2canvas' ;
         peos:[],
         random_peos:42, // 人口随机数
         exits:[],
+        connectors:[],
         ks:[],  // 人口密度统计框
+
+        // 2D 构建仅针对单层；用 store 保存所有楼层数据
+        floor2D:{
+          current: 0, // 内部 floorId：0=>F1, 1=>F2, -1=>B1
+          floors: [0],
+          store: {}, // floorId -> { rooms, peos, exits, pointsNav, pointsNavView, ks }
+          initialized: false
+        },
+        dialogVisible_newFloor:false,
+        newFloorCandidates:{ below: -1, above: 1 },
+        newFloorForm:{
+          targetFloor: 1,
+          mode:'empty', // 'empty' | 'copy'
+          templateFloor: 0
+        },
 
 
         //提交演算
@@ -187,6 +204,7 @@ import html2canvas from 'html2canvas' ;
           rooms:[],
           peos:[],
           exits:[],
+          connectors:[],
           pointsNav:[],
           pointsNavView:[],
           ks:[],
@@ -200,6 +218,30 @@ import html2canvas from 'html2canvas' ;
 
         canvas_heat: null,
         ctx_heat: null,
+        threeViewer: null,
+        view3D:{
+          enabled:false,
+          floorHeight:3,
+          floorFilter:'all',
+          onlyCurrentFloor:false
+        },
+        scaleLabel:'--',
+        zoomLabel:'1.0x',
+        dialogVisible_connector:false,
+        connectorEdit:{
+          active:false,
+          isNew:true,
+          id:0,
+          type:1,
+          fromFloor:0,
+          toFloor:1,
+          entryX:0,
+          entryY:0,
+          exitX:0,
+          exitY:0,
+          capacity:1,
+          serviceTime:5
+        },
 
         heatmapInstance:null,
         d:null,
@@ -884,32 +926,39 @@ import html2canvas from 'html2canvas' ;
       })
       .then((res) => {
         this.setItem('cached4',JSON.stringify(res));
-          if(res.data.msg==='success'){
-              this.myImg.src =  restweburl+res.data.data;
+          if(res.data.msg==='success' && res.data.data){
+              this.myImg = new Image();
+              this.myImg.crossOrigin = 'anonymous';
               this.myImg.onload=()=>
               {
                 const naturalWidth = this.myImg.naturalWidth || this.myImg.width || 0;
                 const naturalHeight = this.myImg.naturalHeight || this.myImg.height || 0;
-                if (this.shouldAutoCenterScene()) {
+                if (naturalWidth > 0 && naturalHeight > 0 && this.shouldAutoCenterScene()) {
                   this.fitBackgroundToCanvas(naturalWidth, naturalHeight, { updateBase: true });
                 }
-                this.ctxBuffer.drawImage(this.myImg, this.viewInfo.imgX0, this.viewInfo.imgY0, this.viewInfo.imgX1-this.viewInfo.imgX0, this.viewInfo.imgY1-this.viewInfo.imgY0);
+                this.viewInfo.isViewImg = true;
                 setTimeout(() => {
                   if (this.getItem("first")) loading.close();
                   this.draw();
-                }, 2000);
-              }
-          }
-          else{
-              this.$notify({
-                  title: '注意',
-                  message: res.data.msg,
-                  type: 'warning',
-                  offset: 100
-              });
-              this.isUpdate=0;
+                }, 200);
+              };
+              this.myImg.onerror = () => {
+                // 底图加载失败时，仅关闭 loading，继续使用无底图模式
+                this.viewInfo.isViewImg = false;
+                if (this.getItem("first")) loading.close();
+                this.draw();
+              };
+              this.myImg.src =  restweburl+res.data.data;
+          } else {
+              // 无底图数据：允许无底图进入 project
+              this.viewInfo.isViewImg = false;
+              if (this.getItem("first")) loading.close();
+              this.draw();
           }
       }).catch((error) =>{
+        this.viewInfo.isViewImg = false;
+        if (this.getItem("first")) loading.close();
+        this.draw();
         this.$notify.error({
             title: '错误',
             message: error,
@@ -921,6 +970,7 @@ import html2canvas from 'html2canvas' ;
       this.pointsNav = res.data.data.pointsNav;//导航点
       this.pointsNavView= res.data.data.pointsNavView;//导航点
       this.exits= res.data.data.exits;//门点
+      this.connectors = Array.isArray(res.data.data.connectors) ? res.data.data.connectors : [];
       this.numberOptions = res.data.data.numberOptions;//门点
 
      // 如果集合点确实peoNum添加上
@@ -990,6 +1040,9 @@ import html2canvas from 'html2canvas' ;
               this.exits[i].y1 = this.exits[i].y0;
               this.exits[i].y3 = this.exits[i].y2;
             }
+
+            // 初始化多楼层数据：2D 仅编辑当前楼层（默认 F1）
+            this.initFloorStoreFromCurrentArrays();
 
             // 删除废弃元素
             let roomColorExists = this.drawConfig.some(item => item.element === "表格颜色"|| item.element === undefined);
@@ -1207,11 +1260,7 @@ import html2canvas from 'html2canvas' ;
       this.ctxBuffer.imageSmoothingEnabled = true;
       this.ctxBuffer.imageSmoothingQuality = 'high';
 
-      this.canvas.addEventListener('mousedown', this.handleMouseDown);
-      this.canvas.addEventListener('dblclick', this.handleDbMouseDown);
-      this.canvas.addEventListener('mouseup', this.handleMouseUp);
-      this.canvas.addEventListener('mousemove', this.handleMouseMove);
-      this.canvas.addEventListener('contextmenu', this.handleContextMenu);
+      this.bindCanvasEvents();
 
       window.addEventListener('keydown', this.handleKey);
       window.addEventListener('keydown', this.handleKeydown);
@@ -1231,12 +1280,470 @@ import html2canvas from 'html2canvas' ;
     },
     beforeDestroy() {
       window.removeEventListener('beforeunload', this.handleBeforeUnload);
-      if (this.canvas) {
-        this.canvas.removeEventListener("wheel", this.handleScroll);
-      }
+      this.unbindCanvasEvents();
+      this.destroyThreeViewer();
+      window.removeEventListener('keydown', this.handleKey);
+      window.removeEventListener('keydown', this.handleKeydown);
+      window.removeEventListener('keydown', this.saveContent);
+      window.removeEventListener('copy', this.handleCopy);
+      window.removeEventListener('paste', this.handlePaste);
+      window.removeEventListener('resize', this.resize);
     },
 
     methods: {
+      saveAndClose() {
+        this.save();
+        this.$notify({
+          title: '保存成功',
+          message: '项目数据已保存，正在关闭页面...',
+          type: 'success'
+        });
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      },
+      floorIdLabel(fid){
+        const n = Number(fid);
+        if (Number.isNaN(n)) return 'F1';
+        if (n >= 0) return `F${n + 1}`;
+        return `B${Math.abs(n)}`;
+      },
+      sortFloorIds(ids){
+        return Array.from(new Set((ids || []).map((v) => Number(v)).filter((v) => !Number.isNaN(v)))).sort((a, b) => a - b);
+      },
+      getFloor2DOptions(){
+        if (!this.floor2D || !Array.isArray(this.floor2D.floors)) return [0];
+        return this.sortFloorIds(this.floor2D.floors);
+      },
+      getAllFloorsSnapshot(){
+        // 确保当前楼层最新编辑写回 store
+        this.persistCurrentFloorToStore();
+        const floors = this.getFloor2DOptions();
+        const store = (this.floor2D && this.floor2D.store) ? this.floor2D.store : {};
+        const all = {
+          rooms: [],
+          peos: [],
+          exits: [],
+          pointsNav: [],
+          pointsNavView: [],
+          ks: []
+        };
+
+        let navOffset = 0;
+        floors.forEach((fid) => {
+          const bucket = store[fid] || {};
+          const nav = Array.isArray(bucket.pointsNav) ? bucket.pointsNav : [];
+          const navView = Array.isArray(bucket.pointsNavView) ? bucket.pointsNavView : [];
+          all.rooms = all.rooms.concat(Array.isArray(bucket.rooms) ? bucket.rooms : []);
+          all.peos = all.peos.concat(Array.isArray(bucket.peos) ? bucket.peos : []);
+          all.exits = all.exits.concat(Array.isArray(bucket.exits) ? bucket.exits : []);
+          all.ks = all.ks.concat(Array.isArray(bucket.ks) ? bucket.ks : []);
+          all.pointsNav = all.pointsNav.concat(nav);
+          // pointsNavView 的 a/b 依赖 pointsNav 索引，合并时需要偏移
+          all.pointsNavView = all.pointsNavView.concat(navView.map((ln) => ({
+            ...ln,
+            a: (ln && ln.a != null) ? Number(ln.a) + navOffset : ln.a,
+            b: (ln && ln.b != null) ? Number(ln.b) + navOffset : ln.b
+          })));
+          navOffset += nav.length;
+        });
+
+        return all;
+      },
+      ensureFloorIdsOnLoadedData(){
+        const defaultFid = 0;
+        const ensure = (obj, key = 'floorId') => {
+          if (!obj || typeof obj !== 'object') return;
+          if (obj[key] === undefined || obj[key] === null || obj[key] === '') obj[key] = defaultFid;
+          obj[key] = Number(obj[key]);
+          if (Number.isNaN(obj[key])) obj[key] = defaultFid;
+        };
+        (this.rooms || []).forEach((r) => {
+          ensure(r, 'floorId');
+          if (Array.isArray(r.walls)) {
+            r.walls.forEach((p) => {
+              if (!p || typeof p !== 'object') return;
+              if (p.floorId === undefined) p.floorId = r.floorId;
+            });
+          }
+        });
+        (this.peos || []).forEach((g) => {
+          ensure(g, 'floorId');
+          if (Array.isArray(g.walls)) g.walls.forEach((p) => { if (p && p.floorId === undefined) p.floorId = g.floorId; });
+          if (Array.isArray(g.peos)) g.peos.forEach((p) => { if (p && p.floorId === undefined) p.floorId = g.floorId; });
+        });
+        (this.exits || []).forEach((e) => ensure(e, 'floorId'));
+        (this.ks || []).forEach((k) => ensure(k, 'floorId'));
+        (this.pointsNav || []).forEach((p) => ensure(p, 'floorId'));
+        (this.connectors || []).forEach((c) => {
+          if (!c || typeof c !== 'object') return;
+          c.fromFloor = Number(c.fromFloor ?? 0);
+          c.toFloor = Number(c.toFloor ?? 0);
+        });
+      },
+      initFloorStoreFromCurrentArrays(){
+        this.ensureFloorIdsOnLoadedData();
+
+        const floors = new Set([0]);
+        (this.rooms || []).forEach((r) => floors.add(Number(r.floorId ?? 0)));
+        (this.exits || []).forEach((e) => floors.add(Number(e.floorId ?? 0)));
+        (this.peos || []).forEach((g) => floors.add(Number(g.floorId ?? 0)));
+        (this.ks || []).forEach((k) => floors.add(Number(k.floorId ?? 0)));
+        (this.pointsNav || []).forEach((p) => floors.add(Number(p.floorId ?? 0)));
+        (this.connectors || []).forEach((c) => { floors.add(Number(c.fromFloor ?? 0)); floors.add(Number(c.toFloor ?? 0)); });
+
+        const floorList = this.sortFloorIds(Array.from(floors));
+        const store = {};
+
+        // 先分 nav：需要重建 pointsNavView 的索引
+        const navByFloor = {};
+        const navIndexMapByFloor = {};
+        floorList.forEach((fid) => { navByFloor[fid] = []; navIndexMapByFloor[fid] = new Map(); });
+        (this.pointsNav || []).forEach((p, idx) => {
+          const fid = Number(p.floorId ?? 0);
+          if (!navByFloor[fid]) { navByFloor[fid] = []; navIndexMapByFloor[fid] = new Map(); floorList.push(fid); }
+          const newIdx = navByFloor[fid].length;
+          navByFloor[fid].push(p);
+          navIndexMapByFloor[fid].set(idx, newIdx);
+        });
+
+        const navViewByFloor = {};
+        floorList.forEach((fid) => { navViewByFloor[fid] = []; });
+        (this.pointsNavView || []).forEach((ln) => {
+          if (!ln) return;
+          const a = Number(ln.a);
+          const b = Number(ln.b);
+          if (Number.isNaN(a) || Number.isNaN(b) || !this.pointsNav[a] || !this.pointsNav[b]) return;
+          const fa = Number(this.pointsNav[a].floorId ?? 0);
+          const fb = Number(this.pointsNav[b].floorId ?? 0);
+          if (fa !== fb) return;
+          const map = navIndexMapByFloor[fa];
+          if (!map) return;
+          const na = map.get(a);
+          const nb = map.get(b);
+          if (na == null || nb == null) return;
+          navViewByFloor[fa].push({ ...ln, a: na, b: nb });
+        });
+
+        this.floor2D = this.floor2D || {};
+        this.floor2D.floors = this.sortFloorIds(floorList);
+        this.floor2D.store = {};
+        this.floor2D.floors.forEach((fid) => {
+          store[fid] = {
+            rooms: (this.rooms || []).filter((r) => Number(r.floorId ?? 0) === fid),
+            peos: (this.peos || []).filter((g) => Number(g.floorId ?? 0) === fid),
+            exits: (this.exits || []).filter((e) => Number(e.floorId ?? 0) === fid),
+            ks: (this.ks || []).filter((k) => Number(k.floorId ?? 0) === fid),
+            pointsNav: navByFloor[fid] || [],
+            pointsNavView: navViewByFloor[fid] || []
+          };
+        });
+        this.floor2D.store = store;
+        this.floor2D.initialized = true;
+
+        // 默认切到 F1（floorId=0）
+        const defaultFloor = this.floor2D.floors.includes(0) ? 0 : this.floor2D.floors[0];
+        this.switch2DFloor(defaultFloor);
+      },
+      persistCurrentFloorToStore(){
+        if (!this.floor2D || !this.floor2D.initialized) return;
+        const fid = Number(this.floor2D.current ?? 0);
+        this.floor2D.store[fid] = {
+          rooms: JSON.parse(JSON.stringify(this.rooms || [])),
+          peos: JSON.parse(JSON.stringify(this.peos || [])),
+          exits: JSON.parse(JSON.stringify(this.exits || [])),
+          ks: JSON.parse(JSON.stringify(this.ks || [])),
+          pointsNav: JSON.parse(JSON.stringify(this.pointsNav || [])),
+          pointsNavView: JSON.parse(JSON.stringify(this.pointsNavView || []))
+        };
+      },
+      resetSelectionStates(){
+        this.TID = 0;
+        this.roomRule.currentID = -1;
+        this.roomRule.currentViewID = -1;
+        this.PeosRule.currentID = -1;
+        this.PeosRule.currentViewID = -1;
+        this.exitRule.currentID = -1;
+        this.exitRule.currentViewID = -1;
+        this.ksRule.currentID = -1;
+        this.ksRule.currentViewID = -1;
+        this.numMoving = -1;
+        this.numMovingPeos = -1;
+        this.numMovingNav = -1;
+        this.numMovingExit = -1;
+        this.numMovingKs = -1;
+      },
+      switch2DFloor(nextFloor){
+        const next = Number(nextFloor);
+        if (!this.floor2D) return;
+        if (!this.floor2D.initialized) {
+          this.floor2D.current = Number.isNaN(next) ? 0 : next;
+          return;
+        }
+        const cur = Number(this.floor2D.current ?? 0);
+        if (!Number.isNaN(cur) && cur !== next) {
+          this.persistCurrentFloorToStore();
+        }
+        if (!this.floor2D.store[next]) {
+          this.floor2D.store[next] = { rooms: [], peos: [], exits: [], pointsNav: [], pointsNavView: [], ks: [] };
+        }
+        this.floor2D.current = next;
+        const bucket = this.floor2D.store[next];
+        this.rooms = JSON.parse(JSON.stringify(bucket.rooms || []));
+        this.peos = JSON.parse(JSON.stringify(bucket.peos || []));
+        this.exits = JSON.parse(JSON.stringify(bucket.exits || []));
+        this.pointsNav = JSON.parse(JSON.stringify(bucket.pointsNav || []));
+        this.pointsNavView = JSON.parse(JSON.stringify(bucket.pointsNavView || []));
+        this.ks = JSON.parse(JSON.stringify(bucket.ks || []));
+
+        // 同步 backup 为“当前楼层”的数据
+        this.backup.rooms = JSON.parse(JSON.stringify(this.rooms));
+        this.backup.peos = JSON.parse(JSON.stringify(this.peos));
+        this.backup.exits = JSON.parse(JSON.stringify(this.exits));
+        this.backup.pointsNav = JSON.parse(JSON.stringify(this.pointsNav));
+        this.backup.pointsNavView = JSON.parse(JSON.stringify(this.pointsNavView));
+        this.backup.ks = JSON.parse(JSON.stringify(this.ks));
+
+        this.resetSelectionStates();
+        this.draw();
+      },
+      recomputeNewFloorCandidates(){
+        const floors = this.getFloor2DOptions();
+        const minF = floors.length ? Math.min(...floors) : 0;
+        const maxF = floors.length ? Math.max(...floors) : 0;
+        this.newFloorCandidates = { below: minF - 1, above: maxF + 1 };
+      },
+      openNewFloorDialog(){
+        if (!this.floor2D || !this.floor2D.initialized) {
+          // 还未初始化时，先基于当前数组初始化 store（至少保证 F1）
+          this.initFloorStoreFromCurrentArrays();
+        }
+        this.persistCurrentFloorToStore();
+        this.recomputeNewFloorCandidates();
+        this.newFloorForm.mode = 'empty';
+        this.newFloorForm.targetFloor = this.newFloorCandidates.above;
+        this.newFloorForm.templateFloor = Number(this.floor2D.current ?? 0);
+        this.dialogVisible_newFloor = true;
+      },
+      applyFloorIdToClonedObjects(list, fid){
+        (list || []).forEach((obj) => {
+          if (!obj || typeof obj !== 'object') return;
+          obj.floorId = fid;
+          if (Array.isArray(obj.walls)) {
+            obj.walls.forEach((p) => { if (p && typeof p === 'object') p.floorId = fid; });
+          }
+          if (Array.isArray(obj.peos)) {
+            obj.peos.forEach((p) => { if (p && typeof p === 'object') p.floorId = fid; });
+          }
+        });
+      },
+      confirmCreateNewFloor(){
+        const fid = Number(this.newFloorForm.targetFloor);
+        if (Number.isNaN(fid)) return;
+        if (!this.floor2D || !this.floor2D.initialized) return;
+        if (this.floor2D.floors.includes(fid)) {
+          this.$message({ type:'warning', message:'该楼层已存在' });
+          return;
+        }
+        this.persistCurrentFloorToStore();
+
+        let bucket = { rooms: [], peos: [], exits: [], pointsNav: [], pointsNavView: [], ks: [] };
+        if (this.newFloorForm.mode === 'copy') {
+          const tpl = Number(this.newFloorForm.templateFloor);
+          const src = this.floor2D.store[tpl];
+          if (src) {
+            bucket = JSON.parse(JSON.stringify(src));
+            this.applyFloorIdToClonedObjects(bucket.rooms, fid);
+            this.applyFloorIdToClonedObjects(bucket.peos, fid);
+            (bucket.exits || []).forEach((e) => { if (e) e.floorId = fid; });
+            (bucket.ks || []).forEach((k) => { if (k) k.floorId = fid; });
+            (bucket.pointsNav || []).forEach((p) => { if (p) p.floorId = fid; });
+          }
+        }
+        this.floor2D.store[fid] = bucket;
+        this.floor2D.floors = this.sortFloorIds(this.floor2D.floors.concat([fid]));
+        this.dialogVisible_newFloor = false;
+        this.switch2DFloor(fid);
+        if (this.view3D.enabled && this.threeViewer) this.syncThreeSceneData();
+      },
+      bindCanvasEvents() {
+        if (!this.canvas) {
+          return;
+        }
+        this.canvas.addEventListener('mousedown', this.handleMouseDown);
+        this.canvas.addEventListener('dblclick', this.handleDbMouseDown);
+        this.canvas.addEventListener('mouseup', this.handleMouseUp);
+        this.canvas.addEventListener('mousemove', this.handleMouseMove);
+        this.canvas.addEventListener('contextmenu', this.handleContextMenu);
+        this.canvas.addEventListener("wheel", this.handleScroll, { passive: false });
+      },
+      unbindCanvasEvents() {
+        if (!this.canvas) {
+          return;
+        }
+        this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+        this.canvas.removeEventListener('dblclick', this.handleDbMouseDown);
+        this.canvas.removeEventListener('mouseup', this.handleMouseUp);
+        this.canvas.removeEventListener('mousemove', this.handleMouseMove);
+        this.canvas.removeEventListener('contextmenu', this.handleContextMenu);
+        this.canvas.removeEventListener("wheel", this.handleScroll);
+      },
+      toggle3DView() {
+        this.view3D.enabled = !this.view3D.enabled;
+        if (this.view3D.enabled) {
+          this.unbindCanvasEvents();
+          this.$nextTick(() => {
+            this.initThreeViewer();
+            this.syncThreeSceneData();
+            this.syncThreeReplayFrame(this.show.showPeople);
+          });
+        } else {
+          this.bindCanvasEvents();
+          this.destroyThreeViewer();
+        }
+      },
+      initThreeViewer() {
+        const container = this.$refs.threeContainer;
+        if (!container) {
+          return;
+        }
+        if (!this.threeViewer) {
+          const mapWidth = Number(this.viewInfo && this.viewInfo.mapWidth ? this.viewInfo.mapWidth : 100);
+          const mapHeight = Number(this.viewInfo && this.viewInfo.mapHeight ? this.viewInfo.mapHeight : 60);
+          this.threeViewer = new ThreeFloorViewer({ 
+            floorHeight: this.view3D.floorHeight,
+            mapWidth,
+            mapHeight
+          });
+          this.threeViewer.onZoomChange = (zoom) => {
+            this.zoomLabel = `${zoom.toFixed(2)}x`;
+          };
+          this.threeViewer.init(container);
+          this.$nextTick(() => this.applyFloorFilter());
+        } else {
+          this.threeViewer.resize();
+        }
+      },
+      destroyThreeViewer() {
+        if (this.threeViewer) {
+          this.threeViewer.dispose();
+          this.threeViewer = null;
+        }
+      },
+      syncThreeSceneData() {
+        if (!this.threeViewer) {
+          return;
+        }
+        // 3D 展示需要全楼层数据
+        const all = (this.floor2D && this.floor2D.initialized) ? this.getAllFloorsSnapshot() : {
+          rooms: (Array.isArray(this.rooms) ? this.rooms : []),
+          exits: (Array.isArray(this.exits) ? this.exits : [])
+        };
+        const connectors = Array.isArray(this.connectors) ? this.connectors : [];
+        this.threeViewer.setStaticScene({
+          rooms: Array.isArray(all.rooms) ? all.rooms : [],
+          exits: Array.isArray(all.exits) ? all.exits : [],
+          connectors
+        });
+      },
+      syncThreeReplayFrame(agents) {
+        if (!this.threeViewer || !Array.isArray(agents)) {
+          return;
+        }
+        this.threeViewer.updateAgents(agents.map((agent) => ({
+          id: agent.id,
+          x: agent.x,
+          y: agent.y,
+          floorId: agent.floorId || 0
+        })));
+      },
+      getFloorFilterOptions() {
+        const floors = new Set(this.getFloor2DOptions().length ? this.getFloor2DOptions() : [0]);
+        (this.connectors || []).forEach((c) => { floors.add(Number(c.fromFloor)); floors.add(Number(c.toFloor)); });
+        return Array.from(floors).sort((a, b) => a - b);
+      },
+      applyFloorFilter() {
+        if (!this.threeViewer) return;
+        const filter = this.view3D.floorFilter;
+        const onlyCurrent = !!this.view3D.onlyCurrentFloor;
+        this.threeViewer.setFloorFilter(filter === 'all' ? null : Number(filter), onlyCurrent);
+      },
+      openConnectorDialog() {
+        this.persistCurrentFloorToStore();
+        this.dialogVisible_connector = true;
+        this.cancelConnectorEdit();
+      },
+      addConnector() {
+        this.connectorEdit.active = true;
+        this.connectorEdit.isNew = true;
+        this.connectorEdit.id = (this.connectors || []).length ? Math.max(...this.connectors.map((c) => c.id || 0)) + 1 : 1;
+        this.connectorEdit.type = 1;
+        this.connectorEdit.fromFloor = Number(this.floor2D && this.floor2D.current != null ? this.floor2D.current : 0);
+        this.connectorEdit.toFloor = this.connectorEdit.fromFloor + 1;
+        this.connectorEdit.entryX = 0;
+        this.connectorEdit.entryY = 0;
+        this.connectorEdit.exitX = 0;
+        this.connectorEdit.exitY = 0;
+        this.connectorEdit.capacity = 1;
+        this.connectorEdit.serviceTime = 5;
+      },
+      editConnector(index) {
+        const c = this.connectors[index];
+        if (!c) return;
+        this.connectorEdit.active = true;
+        this.connectorEdit.isNew = false;
+        this.connectorEdit.editIndex = index;
+        this.connectorEdit.id = c.id;
+        this.connectorEdit.type = c.type !== undefined ? c.type : 1;
+        this.connectorEdit.fromFloor = Number(c.fromFloor);
+        this.connectorEdit.toFloor = Number(c.toFloor);
+        this.connectorEdit.entryX = Number(c.entryX ?? c.x ?? 0);
+        this.connectorEdit.entryY = Number(c.entryY ?? c.y ?? 0);
+        this.connectorEdit.exitX = Number(c.exitX ?? c.entryX ?? c.x ?? 0);
+        this.connectorEdit.exitY = Number(c.exitY ?? c.entryY ?? c.y ?? 0);
+        this.connectorEdit.capacity = Number(c.capacity) || 1;
+        this.connectorEdit.serviceTime = Number(c.serviceTime) || 5;
+      },
+      saveConnector() {
+        const e = this.connectorEdit;
+        const conn = {
+          id: e.id,
+          type: e.type,
+          fromFloor: e.fromFloor,
+          toFloor: e.toFloor,
+          entryX: e.entryX,
+          entryY: e.entryY,
+          exitX: e.exitX,
+          exitY: e.exitY,
+          capacity: e.capacity,
+          serviceTime: e.serviceTime
+        };
+        if (e.isNew) {
+          this.connectors = this.connectors || [];
+          this.connectors.push(conn);
+        } else if (e.editIndex !== undefined) {
+          this.connectors[e.editIndex] = conn;
+        }
+        this.cancelConnectorEdit();
+        if (this.view3D.enabled && this.threeViewer) this.syncThreeSceneData();
+        this.draw();
+      },
+      cancelConnectorEdit() {
+        this.connectorEdit.active = false;
+        this.connectorEdit.editIndex = undefined;
+      },
+      deleteConnector(index) {
+        this.$confirm('确定删除该连接器？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+          this.connectors.splice(index, 1);
+          this.cancelConnectorEdit();
+          if (this.view3D.enabled && this.threeViewer) this.syncThreeSceneData();
+          this.draw();
+        }).catch(() => {});
+      },
       fitBackgroundToCanvas(imageWidth, imageHeight, options = {}) {
         const { updateBase = false } = options;
         const canvasWidth = this.canvas ? this.canvas.width : 0;
@@ -1251,16 +1758,43 @@ import html2canvas from 'html2canvas' ;
         const displayHeight = imageHeight * scale;
         const offsetX = (canvasWidth - displayWidth) / 2;
         const offsetY = (canvasHeight - displayHeight) / 2;
+        
+        // 记录旧的中心点坐标
+        const oldCenterX = (this.viewInfo.imgX0 + this.viewInfo.imgX1) / 2;
+        const oldCenterY = (this.viewInfo.imgY0 + this.viewInfo.imgY1) / 2;
+        const newCenterX = offsetX + displayWidth / 2;
+        const newCenterY = offsetY + displayHeight / 2;
+        const dx = newCenterX - oldCenterX;
+        const dy = newCenterY - oldCenterY;
+
         this.viewInfo.imgX0 = offsetX;
         this.viewInfo.imgY0 = offsetY;
         this.viewInfo.imgX1 = offsetX + displayWidth;
         this.viewInfo.imgY1 = offsetY + displayHeight;
+
         if (updateBase) {
           this.viewInfo.baseX0 = offsetX;
           this.viewInfo.baseY0 = offsetY;
           this.viewInfo.baseX1 = offsetX + displayWidth;
           this.viewInfo.baseY1 = offsetY + displayHeight;
         }
+
+        // 同步移动所有场景元素，实现“以场景中心为页面中心”
+        this.rooms.forEach(r => {
+          if (Array.isArray(r.walls)) r.walls.forEach(p => { if(p.x !== -10000){ p.x += dx; p.y += dy; } });
+          if (Array.isArray(r.peos)) r.peos.forEach(p => { p.x += dx; p.y += dy; });
+          if (r.lca) { r.lca.X0 += dx; r.lca.Y0 += dy; r.lca.X1 += dx; r.lca.Y1 += dy; r.lca.Xm += dx; r.lca.Ym += dy; }
+        });
+        this.peos.forEach(g => {
+          if (Array.isArray(g.walls)) g.walls.forEach(p => { if(p.x !== -10000){ p.x += dx; p.y += dy; } });
+          if (Array.isArray(g.peos)) g.peos.forEach(p => { p.x += dx; p.y += dy; });
+          if (g.lca) { g.lca.X0 += dx; g.lca.Y0 += dy; g.lca.X1 += dx; g.lca.Y1 += dy; g.lca.Xm += dx; g.lca.Ym += dy; }
+        });
+        this.exits.forEach(e => { e.x0 += dx; e.y0 += dy; e.x1 += dx; e.y1 += dy; e.x2 += dx; e.y2 += dy; e.x3 += dx; e.y3 += dy; });
+        this.ks.forEach(k => { k.area.x0 += dx; k.area.y0 += dy; k.area.x1 += dx; k.area.y1 += dy; });
+        this.pointsNav.forEach(p => { p.x += dx; p.y += dy; });
+        
+        this.draw();
       },
       shouldAutoCenterScene() {
         const hasRooms = Array.isArray(this.rooms) && this.rooms.some(room => Array.isArray(room.walls) && room.walls.length);
@@ -1631,6 +2165,7 @@ import html2canvas from 'html2canvas' ;
                   rooms:this.init_rooms(),
                   navPos:this.init_navs(),
                   peos:this.init_poes(),
+                  connectors:this.init_connectors(),
               }
           })
           .then(async (res) => {
@@ -3916,6 +4451,7 @@ import html2canvas from 'html2canvas' ;
                 navPos:this.init_navs(),
                 rooms:this.init_rooms(),
                 peos:this.init_poes(),
+                connectors:this.init_connectors(),
                 weight:this.simulateConfig[0].weight,
                 numMax:this.simulateConfig[2].weight,
                 numMin:this.simulateConfig[1].weight,
@@ -3953,8 +4489,8 @@ import html2canvas from 'html2canvas' ;
             this.isUpdate=-1;
         });
         },
-        init_exit(){
-          var temp_exit = JSON.parse(JSON.stringify(this.exits));
+        init_exit(exits = this.exits){
+          var temp_exit = JSON.parse(JSON.stringify(exits || []));
           temp_exit.forEach(exit=>{
             if (exit.x0!== -10000){
                           exit.x0 = (exit.x0-this.viewInfo.imgX0)*this.nST.sT;
@@ -3972,8 +4508,8 @@ import html2canvas from 'html2canvas' ;
           return temp_exit;
         },
         
-        init_poes(){
-          var temp_peos = JSON.parse(JSON.stringify(this.peos));
+        init_poes(peos = this.peos){
+          var temp_peos = JSON.parse(JSON.stringify(peos || []));
           temp_peos.forEach(peos=>{
             peos.peos.forEach(peo=>{
               peo.x = (peo.x-this.viewInfo.imgX0)*this.nST.sT;
@@ -3987,8 +4523,8 @@ import html2canvas from 'html2canvas' ;
           return temp_peos;
         },
         // 修改字段，使结果正确
-        init_navs(){
-          var temp_nav = JSON.parse(JSON.stringify(this.pointsNav));
+        init_navs(navs = this.pointsNav){
+          var temp_nav = JSON.parse(JSON.stringify(navs || []));
           temp_nav.forEach(nav =>{
             if (nav.x !== -10000){
               nav.x = (nav.x-this.viewInfo.imgX0)*this.nST.sT;
@@ -3998,8 +4534,34 @@ import html2canvas from 'html2canvas' ;
           })
           return temp_nav;
         },
-        init_rooms(){
-          var temp_rooms = JSON.parse(JSON.stringify(this.rooms));
+        init_connectors(){
+          var temp_connectors = JSON.parse(JSON.stringify(this.connectors || []));
+          temp_connectors.forEach(connector => {
+            if (connector.entryX !== undefined) {
+              connector.entryX = (connector.entryX - this.viewInfo.imgX0) * this.nST.sT;
+            } else if (connector.x !== undefined) {
+              connector.entryX = (connector.x - this.viewInfo.imgX0) * this.nST.sT;
+            }
+            if (connector.entryY !== undefined) {
+              connector.entryY = (connector.entryY - this.viewInfo.imgY0) * this.nST.sT;
+            } else if (connector.y !== undefined) {
+              connector.entryY = (connector.y - this.viewInfo.imgY0) * this.nST.sT;
+            }
+            if (connector.exitX !== undefined) {
+              connector.exitX = (connector.exitX - this.viewInfo.imgX0) * this.nST.sT;
+            } else {
+              connector.exitX = connector.entryX;
+            }
+            if (connector.exitY !== undefined) {
+              connector.exitY = (connector.exitY - this.viewInfo.imgY0) * this.nST.sT;
+            } else {
+              connector.exitY = connector.entryY;
+            }
+          });
+          return temp_connectors;
+        },
+        init_rooms(rooms = this.rooms){
+          var temp_rooms = JSON.parse(JSON.stringify(rooms || []));
           temp_rooms.forEach(room => {
             // 对lca字段进行计算
             if (room.lca.X0 !== -10000){
@@ -4076,6 +4638,16 @@ import html2canvas from 'html2canvas' ;
             
           })
           return temp_nav;
+        },
+        back_connectors(connectors,imgX0,imgY0,sT){
+          var temp_connectors = JSON.parse(JSON.stringify(connectors || []));
+          temp_connectors.forEach(connector => {
+            connector.entryX = (connector.entryX ?? connector.x ?? 0) / sT + imgX0;
+            connector.entryY = (connector.entryY ?? connector.y ?? 0) / sT + imgY0;
+            connector.exitX = (connector.exitX ?? connector.entryX) / sT + imgX0;
+            connector.exitY = (connector.exitY ?? connector.entryY) / sT + imgY0;
+          });
+          return temp_connectors;
         },
         back_rooms(rooms,imgX0,imgY0,sT){
           var temp_rooms = JSON.parse(JSON.stringify(rooms));
@@ -4379,24 +4951,25 @@ import html2canvas from 'html2canvas' ;
           this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
           
           this.ctx.drawImage(this.canvasBuffer,0,0);
-          //绘制比例尺
-        let a = this.viewInfo.sT
-        a = (a*1).toFixed(2)
-        this.ctx.shadowOffsetX = 1;
-        this.ctx.shadowOffsetY = 1;
-        this.ctx.shadowBlur = 1;
-        this.ctx.font = '16px Arial';
-        this.ctx.strokeStyle = 'white'; // 设置线的颜色为蓝色
-        this.ctx.fillStyle = 'white'; // 设置线的颜色为白色
-        this.ctx.lineWidth = 1; // 设置线的宽度为2
+        // 更新比例尺文案（黑色）
+        let a = this.viewInfo.sT;
+        a = (a * 1).toFixed(2);
+        this.scaleLabel = `${a} m`;
+        this.ctx.shadowOffsetX = 0;
+        this.ctx.shadowOffsetY = 0;
+        this.ctx.shadowBlur = 0;
+        this.ctx.font = '14px Arial';
+        this.ctx.strokeStyle = 'black';
+        this.ctx.fillStyle = 'black';
+        this.ctx.lineWidth = 1;
         this.ctx.beginPath();
-        this.ctx.moveTo(this.canvas.width-130, 22);
-        this.ctx.lineTo(this.canvas.width-130, 29);
-        this.ctx.lineTo(this.canvas.width-60, 29);
-        this.ctx.lineTo(this.canvas.width-60, 22);
+        this.ctx.moveTo(this.canvas.width - 130, this.canvas.height - 30);
+        this.ctx.lineTo(this.canvas.width - 130, this.canvas.height - 24);
+        this.ctx.lineTo(this.canvas.width - 60, this.canvas.height - 24);
+        this.ctx.lineTo(this.canvas.width - 60, this.canvas.height - 30);
         this.ctx.stroke();
-        this.ctx.fillText(0, this.canvas.width-130-5, 17, 27);
-        this.ctx.fillText(a+"m", this.canvas.width-60-10, 17, 47);
+        this.ctx.fillText('0', this.canvas.width - 130 - 5, this.canvas.height - 34);
+        this.ctx.fillText(a + 'm', this.canvas.width - 60 - 10, this.canvas.height - 34);
           // window.requestAnimationFrame(this.buffDraw);
         },
         //导航连线更新
@@ -4415,6 +4988,7 @@ import html2canvas from 'html2canvas' ;
                     rooms:this.init_rooms(),
                     navPos:this.init_navs(),
                     peos:this.init_poes(),
+                    connectors:this.init_connectors(),
                 }
             })
             .then(async (res) => {
@@ -4521,6 +5095,7 @@ import html2canvas from 'html2canvas' ;
       this.peos=JSON.parse(JSON.stringify(this.backup.peos));
       this.rooms=JSON.parse(JSON.stringify(this.backup.rooms));
       this.exits=JSON.parse(JSON.stringify(this.backup.exits));
+      this.connectors=JSON.parse(JSON.stringify(this.backup.connectors || []));
       this.pointsNav=JSON.parse(JSON.stringify(this.backup.pointsNav));
       this.pointsNavView=JSON.parse(JSON.stringify(this.backup.pointsNavView));
       this.viewInfo=JSON.parse(JSON.stringify(this.backup.viewInfo));
@@ -5267,14 +5842,14 @@ import html2canvas from 'html2canvas' ;
     //缩放
     scale(x,y){
         if(this.viewInfo.scale>1){//放大
-            if(this.nST.sTX>=16)return;
+            if(this.nST.sTX>=32)return;
             this.show.sT/=1.5;
             this.nST.sT/=1.5;
             this.nST.sTX*=1.5;
             this.viewInfo.sT= this.nST.sT*this.bST.bTX*70;
         }
         else if(this.viewInfo.scale<1){//缩小
-          if(this.nST.sTX<=1)return;
+          if(this.nST.sTX<=0.1)return;
             this.show.sT*=1.5;
             this.nST.sT*=1.5;
             this.nST.sTX/=1.5;
@@ -6012,6 +6587,7 @@ import html2canvas from 'html2canvas' ;
           this.ks.push({
               kid:this.ks.length+1,
               name:this.ks.length+1,
+              floorId: Number(this.floor2D && this.floor2D.current != null ? this.floor2D.current : 0),
               speed:10,
               area:{
                   x0:offsetX,
@@ -6058,7 +6634,8 @@ import html2canvas from 'html2canvas' ;
         if(this.TID==7){
             this.exits.push({x0: offsetX, y0: offsetY,x1: offsetX, y1: offsetY,
                 x2: offsetX, y2: offsetY,x3: offsetX, y3: offsetY,id:this.exits.length+1,name:'新建集合点'+(this.exits.length+1),
-                color:'rgba(255, 255, 255, 1)',peoNum:10000});
+                color:'rgba(255, 255, 255, 1)',peoNum:10000,
+                floorId: Number(this.floor2D && this.floor2D.current != null ? this.floor2D.current : 0)});
             if (this.exits.length > 1){
               this.exits[this.exits.length-1].id = this.exits[this.exits.length-2].id + 1;
               this.exits[this.exits.length-1].name = '新建集合点'+ this.exits[this.exits.length-1].id;
@@ -6116,6 +6693,7 @@ import html2canvas from 'html2canvas' ;
         if(this.TID==22){
           this.peos.push({
               pid:this.peos.length,
+              floorId: Number(this.floor2D && this.floor2D.current != null ? this.floor2D.current : 0),
               walls:[],
               peos:[],
               lca:{
@@ -6245,6 +6823,7 @@ import html2canvas from 'html2canvas' ;
         if(this.TID==5){
             this.rooms.push({
                 rid:this.rooms.length,
+                floorId: Number(this.floor2D && this.floor2D.current != null ? this.floor2D.current : 0),
                 walls:[],
                 peos:[],
                 lca:{
@@ -6431,7 +7010,8 @@ import html2canvas from 'html2canvas' ;
             if (event.button === 0) {
                 this.pointsNav.push({
                     x: offsetX,
-                    y: offsetY
+                    y: offsetY,
+                    floorId: Number(this.floor2D && this.floor2D.current != null ? this.floor2D.current : 0)
                 });
                 this.updateNav(false);
             }
@@ -7538,8 +8118,8 @@ if(this.TID==31||this.TID==29){
         this.ctxBuffer.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
 
-        //绘制底图
-        if(this.myImg!=null && this.viewInfo.isViewImg){
+        //绘制底图（底图为可选项，需确保图片已成功加载）
+        if (this.myImg && this.viewInfo.isViewImg && this.myImg.complete && this.myImg.naturalWidth > 0 && this.myImg.naturalHeight > 0) {
           // this.myImg.onload = () => {
           //   // 使用 fabric.Image 来创建图片对象
           //   const fabricImage = new fabric.Image(this.myImg);
@@ -7556,7 +8136,13 @@ if(this.TID==31||this.TID==29){
           //   this.canvas.add(fabricImage);
           //   this.canvas.renderAll(); // 渲染 canvas 以显示图片
           // };
-          this.ctxBuffer.drawImage(this.myImg,Math.round(this.viewInfo.imgX0), Math.round(this.viewInfo.imgY0), Math.round((this.viewInfo.imgX1-this.viewInfo.imgX0)), Math.round((this.viewInfo.imgY1-this.viewInfo.imgY0)));
+          this.ctxBuffer.drawImage(
+            this.myImg,
+            Math.round(this.viewInfo.imgX0),
+            Math.round(this.viewInfo.imgY0),
+            Math.round(this.viewInfo.imgX1 - this.viewInfo.imgX0),
+            Math.round(this.viewInfo.imgY1 - this.viewInfo.imgY0)
+          );
           
         }
         // 绘制蒙版（半透明矩形框）
@@ -8242,6 +8828,13 @@ if(this.TID==31||this.TID==29){
         this.TID = 10;
         this.up.stageMessage='准备演算中...';
         var url = restweburl + 'commit';
+        const allFloors = (this.floor2D && this.floor2D.initialized) ? this.getAllFloorsSnapshot() : {
+          rooms: this.rooms,
+          peos: this.peos,
+          exits: this.exits,
+          pointsNav: this.pointsNav,
+          ks: this.ks
+        };
         // 重新加载一下人群
         // this.drawRoomPeo_all();
         // this.drawPeosPeo_all();
@@ -8249,19 +8842,20 @@ if(this.TID==31||this.TID==29){
         this.viewInfo.isViewNav=false;
         // 获取所有方案指标、
         let rect = [];
-        for(let i =0;i<this.ks.length;i++){
+        const ksAll = Array.isArray(allFloors.ks) ? allFloors.ks : [];
+        for(let i =0;i<ksAll.length;i++){
           rect.push({
             begin:parseFloat(0),
             end:parseFloat(3000),
-            x0:(this.ks[i].area.x0-this.viewInfo.imgX0)*this.nST.sT,
-               y0:(this.ks[i].area.y0-this.viewInfo.imgY0)*this.nST.sT,
-               x1:(this.ks[i].area.x1-this.viewInfo.imgX0)*this.nST.sT,
-               y1:(this.ks[i].area.y1-this.viewInfo.imgY0)*this.nST.sT,
-               x2:(this.ks[i].area.x2-this.viewInfo.imgX0)*this.nST.sT,
-               y2:(this.ks[i].area.y2-this.viewInfo.imgY0)*this.nST.sT,
-               x3:(this.ks[i].area.x3-this.viewInfo.imgX0)*this.nST.sT,
-               y3:(this.ks[i].area.y3-this.viewInfo.imgY0)*this.nST.sT,
-            limit:this.ks[i].speed,
+            x0:(ksAll[i].area.x0-this.viewInfo.imgX0)*this.nST.sT,
+               y0:(ksAll[i].area.y0-this.viewInfo.imgY0)*this.nST.sT,
+               x1:(ksAll[i].area.x1-this.viewInfo.imgX0)*this.nST.sT,
+               y1:(ksAll[i].area.y1-this.viewInfo.imgY0)*this.nST.sT,
+               x2:(ksAll[i].area.x2-this.viewInfo.imgX0)*this.nST.sT,
+               y2:(ksAll[i].area.y2-this.viewInfo.imgY0)*this.nST.sT,
+               x3:(ksAll[i].area.x3-this.viewInfo.imgX0)*this.nST.sT,
+               y3:(ksAll[i].area.y3-this.viewInfo.imgY0)*this.nST.sT,
+            limit:ksAll[i].speed,
           });
         }
         axios({
@@ -8269,10 +8863,11 @@ if(this.TID==31||this.TID==29){
           method: "post",
           data:{
             bID:this.$route.params.bID,
-            navPos:this.init_navs(),
-            exit:this.init_exit(),
-            rooms:this.init_rooms(),
-            peos:this.init_poes(),
+            navPos:this.init_navs(allFloors.pointsNav),
+            exit:this.init_exit(allFloors.exits),
+            rooms:this.init_rooms(allFloors.rooms),
+            peos:this.init_poes(allFloors.peos),
+            connectors:this.init_connectors(),
             scale:this.viewInfo.sT/70,
             viewInfo:this.viewInfo,
             sT:parseFloat(this.nST.sT),
@@ -8439,6 +9034,7 @@ if(this.TID==31||this.TID==29){
             exit:this.init_exit(),
             rooms:this.init_rooms(),
             peos:this.init_poes(),
+            connectors:this.init_connectors(),
             scale:this.viewInfo.sT/70,
             viewInfo:this.viewInfo,
             nST:this.nST,
@@ -8569,6 +9165,7 @@ if(this.TID==31||this.TID==29){
             this.backup.peos = JSON.parse(JSON.stringify(this.peos));
             this.backup.rooms=JSON.parse(JSON.stringify(this.rooms));
             this.backup.exits=JSON.parse(JSON.stringify(this.exits));
+            this.backup.connectors=JSON.parse(JSON.stringify(this.connectors));
             this.backup.pointsNav=JSON.parse(JSON.stringify(this.pointsNav));
             this.backup.pointsNavView=JSON.parse(JSON.stringify(this.pointsNavView));
             this.backup.viewInfo=JSON.parse(JSON.stringify(this.viewInfo)); 
@@ -8584,10 +9181,14 @@ if(this.TID==31||this.TID==29){
             this.rooms = this.back_rooms(res.data.data.frame.rooms,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
             this.exits = this.back_exit(res.data.data.frame.exit,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
             this.pointsNav = this.back_navs(res.data.data.frame.navPos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+            this.connectors = this.back_connectors(res.data.data.frame.connectors, res.data.data.frame.viewInfo.imgX0, res.data.data.frame.viewInfo.imgY0, res.data.data.frame.nST.sT);
             this.viewInfo = res.data.data.frame.viewInfo;
             //this.viewInfo.isViewKs = false;
             this.nST = res.data.data.frame.nST;
             this.draw();
+            if (this.view3D.enabled) {
+              this.syncThreeSceneData();
+            }
 
             //热力图加载
             url = restweburl + 'getHeatMap';
@@ -8694,6 +9295,7 @@ if(this.TID==31||this.TID==29){
           this.backup.peos=JSON.parse(JSON.stringify(this.peos));
           this.backup.rooms=JSON.parse(JSON.stringify(this.rooms));
           this.backup.exits=JSON.parse(JSON.stringify(this.exits));
+          this.backup.connectors=JSON.parse(JSON.stringify(this.connectors));
           this.backup.pointsNav=JSON.parse(JSON.stringify(this.pointsNav));
           this.backup.pointsNavView=JSON.parse(JSON.stringify(this.pointsNavView));
           this.backup.viewInfo=JSON.parse(JSON.stringify(this.viewInfo)); 
@@ -8709,9 +9311,13 @@ if(this.TID==31||this.TID==29){
           this.rooms = this.back_rooms(res.data.data.frame.rooms,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
           this.exits = this.back_exit(res.data.data.frame.exit,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
           this.pointsNav = this.back_navs(res.data.data.frame.navPos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+          this.connectors = this.back_connectors(res.data.data.frame.connectors, res.data.data.frame.viewInfo.imgX0, res.data.data.frame.viewInfo.imgY0, res.data.data.frame.nST.sT);
           //this.viewInfo = res.data.data.frame.viewInfo;
           this.nST = res.data.data.frame.nST;
           this.draw();
+          if (this.view3D.enabled) {
+            this.syncThreeSceneData();
+          }
 
           //热力图加载
           url = restweburl + 'getHeatMap';
@@ -8817,6 +9423,7 @@ if(this.TID==31||this.TID==29){
         this.backup.peos = JSON.parse(JSON.stringify(this.peos));
         this.backup.rooms=JSON.parse(JSON.stringify(this.rooms));
         this.backup.exits=JSON.parse(JSON.stringify(this.exits));
+        this.backup.connectors=JSON.parse(JSON.stringify(this.connectors));
         this.backup.pointsNav=JSON.parse(JSON.stringify(this.pointsNav));
         this.backup.pointsNavView=JSON.parse(JSON.stringify(this.pointsNavView));
         this.backup.viewInfo=JSON.parse(JSON.stringify(this.viewInfo)); 
@@ -8831,6 +9438,7 @@ if(this.TID==31||this.TID==29){
         this.rooms = this.back_rooms(res.data.data.frame.rooms,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
         this.exits = this.back_exit(res.data.data.frame.exit,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
         this.pointsNav = this.back_navs(res.data.data.frame.navPos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+        this.connectors = this.back_connectors(res.data.data.frame.connectors, res.data.data.frame.viewInfo.imgX0, res.data.data.frame.viewInfo.imgY0, res.data.data.frame.nST.sT);
         // this.viewInfo.X1 = (this.viewInfo.X1-this.viewInfo.X0)*this.nST.sT;
         // this.viewInfo.Y1 = (this.viewInfo.Y1-this.viewInfo.Y0)*this.nST.sT;
         // this.viewInfo.X0 = 0;
@@ -8840,6 +9448,9 @@ if(this.TID==31||this.TID==29){
         //this.viewInfo = res.data.data.frame.viewInfo;
         this.nST = res.data.data.frame.nST;
         this.draw();
+        if (this.view3D.enabled) {
+          this.syncThreeSceneData();
+        }
 
         //热力图加载
         url = restweburl + 'getHeatMap';
@@ -8987,6 +9598,9 @@ if(this.TID==31||this.TID==29){
       let i = this.show.frameNum;
       while(i < this.d5.length){
         this.show.showPeople=this.d5[i];
+        if (this.view3D.enabled) {
+          this.syncThreeReplayFrame(this.show.showPeople);
+        }
         this.draw();
         this.show.nowTime+=1;
         const advance = await this.wait();
@@ -9009,6 +9623,9 @@ if(this.TID==31||this.TID==29){
         let frameIndex = this.show.frameNum;
         while (frameIndex < currentClip.length) {
           this.show.showPeople = currentClip[frameIndex];
+          if (this.view3D.enabled) {
+            this.syncThreeReplayFrame(this.show.showPeople);
+          }
           this.draw();
           this.show.nowTime += 1;
     
@@ -9064,16 +9681,25 @@ if(this.TID==31||this.TID==29){
     //保存项目
     save(){
         var url = restweburl + 'saveBlueprint';
+        const allFloors = (this.floor2D && this.floor2D.initialized) ? this.getAllFloorsSnapshot() : {
+          peos: this.peos,
+          rooms: this.rooms,
+          pointsNav: this.pointsNav,
+          pointsNavView: this.pointsNavView,
+          exits: this.exits,
+          ks: this.ks
+        };
         axios({
           url: url,
           headers:{"bID":this.$route.params.bID},
           method: "post",
           data:{
-            peos:this.peos,
-            rooms:this.rooms,
-            pointsNav:this.pointsNav,
-            exits:this.exits,
-            pointsNavView:this.pointsNavView,
+            peos:allFloors.peos,
+            rooms:allFloors.rooms,
+            pointsNav:allFloors.pointsNav,
+            exits:allFloors.exits,
+            connectors:this.connectors,
+            pointsNavView:allFloors.pointsNavView,
             viewInfo:this.viewInfo,
             drawConfig:this.drawConfig,
             drawConfig_color:this.drawConfig_color,
@@ -9081,7 +9707,7 @@ if(this.TID==31||this.TID==29){
             show:this.show,
             nST:this.nST,
             bST:this.bST,
-            ks:this.ks,
+            ks:allFloors.ks,
             selectMethod:this.selectMethod, // 选择的出口方案 
             old_selectMethod:this.old_selectMethod,
             selectMethodALL:this.selectMethodALL, // 所有可选出口方案 

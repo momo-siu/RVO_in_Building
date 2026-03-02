@@ -1,9 +1,9 @@
 <template>
-  <div class="main project-container" :style="{ backgroundColor: drawConfig[8].state ? drawConfig[8].color : '#f8f9fa' }">
-    <div ref="div" class="project-header">
-      <div class="button-row">
+  <div class="main project-container" style="background-color: #ffffff !important;">
+    <div ref="div" class="project-header" style="background-color: #ffffff !important; background: #ffffff !important; display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; overflow-x: auto !important; padding: 10px 15px !important; margin-bottom: 0 !important; min-height: 80px !important; white-space: nowrap !important; width: 100% !important; box-sizing: border-box !important; border: none !important; border-bottom: 1px solid #e9ecef !important; border-radius: 0 !important;">
+      <div class="button-row" style="display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; gap: 10px !important; width: 100% !important; flex-shrink: 0 !important;">
         <!-- 项目管理按钮组 -->
-        <div class="button-group">
+        <div class="button-group" style="display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; flex-shrink: 0 !important; gap: 5px !important; margin: 0 5px !important;">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
             <el-button>
               项目管理<i class="el-icon-arrow-down el-icon--right"></i>
@@ -18,7 +18,7 @@
         </div>
 
         <!-- 场景构建按钮组 -->
-        <div class="button-group">
+        <div class="button-group" style="display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; flex-shrink: 0 !important; gap: 5px !important; margin: 0 5px !important;">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
             <el-button>
               场景构建<i class="el-icon-arrow-down el-icon--right"></i>
@@ -29,20 +29,21 @@
               <el-dropdown-item @click.native="TID=7" :disabled="TID==11||TID==19||TID==10">新建集合点</el-dropdown-item>
               <el-dropdown-item @click.native="TID=20" :disabled="TID==11||TID==19||TID==10">新建统计框</el-dropdown-item>
               <el-dropdown-item @click.native="TID=22" :disabled="TID==11||TID==19||TID==10">新建人口框</el-dropdown-item>
+              <el-dropdown-item @click.native="openConnectorDialog()" :disabled="TID==11||TID==19||TID==10">新建楼梯/电梯</el-dropdown-item>
+              <el-dropdown-item @click.native="openNewFloorDialog()" :disabled="TID==11||TID==19||TID==10">新建楼层</el-dropdown-item>
               <el-dropdown-item @click.native="statistic=true,calc()" :disabled="TID==11||TID==19||TID==10">统计信息</el-dropdown-item>
             </el-dropdown-menu>
           </el-dropdown>
         </div>
         
         <!-- 模拟执行按钮组 -->
-        <div class="button-group">
+        <div class="button-group" style="display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; flex-shrink: 0 !important; gap: 5px !important; margin: 0 5px !important;">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
             <el-button>
               模拟执行<i class="el-icon-arrow-down el-icon--right"></i>
             </el-button>
             <el-dropdown-menu slot="dropdown">
               <el-dropdown-item @click.native="dialogVisible_attr_4=true" :disabled="TID==11||TID==19||TID==10">出口选择参数设置</el-dropdown-item>
-              <el-dropdown-item @click.native="initShow_18()" :disabled="TID==11||TID==19||TID==10">出口方案选择</el-dropdown-item>
               <el-dropdown-item @click.native="check()" :disabled="TID==11||TID==19||TID==10">参数检验</el-dropdown-item>
               <el-dropdown-item :disabled="!isValid || TID==11||TID==19||TID==10" @click.native="upload(),this.isOk = true,percentage=0">方案模拟</el-dropdown-item>
             </el-dropdown-menu>
@@ -55,14 +56,12 @@
             <el-dropdown-menu slot="dropdown">
               <el-dropdown-item @click.native="dialogVisible_attr_6=true;smode='总体对比';">总体对比</el-dropdown-item>
               <el-dropdown-item @click.native="dialogVisible_attr_show_14=true;smode='撤离时间对比';initShow_14()">撤离时间</el-dropdown-item>
-              <el-dropdown-item @click.native="dialogVisible_attr_show_15=true;smode='总剂量对比';initShow_15()">总剂量</el-dropdown-item>
-              <el-dropdown-item @click.native="dialogVisible_attr_show_16=true;smode='最大个人剂量';initShow_16()">最大个人剂量</el-dropdown-item>
               <el-dropdown-item @click.native="dialogVisible_attr_show_19=true;smode='拥堵区域个数';initShow_19()">拥堵区域个数</el-dropdown-item>
             </el-dropdown-menu>
           </el-dropdown>
         </div>
         
-        <div class="button-group">
+        <div class="button-group" style="display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; flex-shrink: 0 !important; gap: 5px !important; margin: 0 5px !important;">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
             <el-button>
               结果展示<i class="el-icon-arrow-down el-icon--right"></i>
@@ -71,13 +70,12 @@
               <el-dropdown-item v-if="TID!=11&& TID!=19" :disabled="TID==10" @click.native="openAnimationSetting">动画展示</el-dropdown-item>
               <el-dropdown-item v-if="TID!=11&& TID!=19" :disabled="TID==10" @click.native="dialogVisible_6=true;smode='查看方案';show_method()">查看方案</el-dropdown-item>
               <el-dropdown-item @click.native="dialogVisible_attr_show_1=true;smode='人数';initShow()">撤离人数-时间</el-dropdown-item>
-              <el-dropdown-item @click.native="dialogVisible_attr_show_2=true;smode='剂量';initShow_2()">受照剂量-时间</el-dropdown-item>
               <el-dropdown-item @click.native="dialogVisible_attr_show_3=true">区域密度-时间</el-dropdown-item>
               <el-dropdown-item @click.native="dialogVisible_attr_show_4=true;smode='人数';initShow_4()">撤离时间-人数</el-dropdown-item>
-              <el-dropdown-item @click.native="dialogVisible_attr_show_5=true;smpde='直方图-剂量';initShow_5()">受照剂量-人数</el-dropdown-item>
             </el-dropdown-menu>
           </el-dropdown>
           
+        <div class="button-group" style="display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; flex-shrink: 0 !important; gap: 5px !important; margin: 0 5px !important;">
           <el-dropdown :disabled="TID==11||TID==19||TID==10">
             <el-button>
               设置<i class="el-icon-arrow-down el-icon--right"></i>
@@ -85,8 +83,15 @@
             <el-dropdown-menu slot="dropdown">
               <el-dropdown-item :disabled="TID==10" type="primary" @click.native="handleFullScreen()">全屏显示</el-dropdown-item>
               <el-dropdown-item @click.native="dialogVisible_attr_2=true" :disabled="TID==11||TID==19||TID==10">图层控制</el-dropdown-item>
+              <el-dropdown-item @click.native="toggle3DView()" :disabled="TID==10">{{ view3D && view3D.enabled ? '切换回2D视图' : '切换到3D视图' }}</el-dropdown-item>
             </el-dropdown-menu>
           </el-dropdown>
+        </div>
+        </div>
+
+        <!-- 保存并关闭按钮 -->
+        <div class="button-group" style="display: flex !important; flex-direction: row !important; align-items: center !important; flex-wrap: nowrap !important; flex-shrink: 0 !important; margin-left: auto !important; padding-right: 10px !important;">
+          <el-button type="danger" size="small" @click="saveAndClose" style="background: #f56c6c !important; color: #fff !important; font-weight: bold !important; border: none !important; border-radius: 4px !important; padding: 8px 16px !important;">保存并关闭</el-button>
         </div>
 
         <!-- Animation Controls (right aligned, after all dropdowns) -->
@@ -130,15 +135,124 @@
       <el-checkbox v-model="viewInfo.isViewHeat" label="热力图图层"></el-checkbox> -->
     </div>
      
-    <div>
-      <canvas id="canvas" ref="canvas" :width="1000" :height="600" style="z-index:1"></canvas> 
-      <canvas id="heatmap" style="margin-top: 1000px;" :width="1000" :height="600" ></canvas>
+    <div class="render-stage">
+      <canvas id="canvas" ref="canvas" :width="1000" :height="600" style="z-index:1" v-show="!(view3D && view3D.enabled)"></canvas> 
+      <canvas id="heatmap" style="margin-top: 1000px;" :width="1000" :height="600" v-show="!(view3D && view3D.enabled)"></canvas>
+      <div class="floor-switch-2d" style="position: absolute !important; top: 90px !important; left: 20px !important; background: white !important; padding: 6px 12px !important; border-radius: 8px !important; display: flex !important; align-items: center !important; gap: 8px !important; z-index: 100 !important; border: 1px solid #dcdfe6 !important; box-shadow: 0 2px 12px rgba(0,0,0,0.1) !important;" v-show="!(view3D && view3D.enabled)">
+        <span class="floor-switch-label" style="font-weight: 600 !important; color: #606266 !important;">楼层：</span>
+        <el-radio-group v-model="floor2D.current" size="mini" @change="switch2DFloor">
+          <el-radio-button v-for="f in getFloor2DOptions()" :key="f" :label="f">{{ floorIdLabel(f) }}</el-radio-button>
+        </el-radio-group>
+      </div>
+      <div class="zoom-indicator" style="position: absolute !important; top: 90px !important; right: 20px !important; background: rgba(15, 23, 42, 0.8) !important; color: white !important; padding: 6px 12px !important; border-radius: 8px !important; font-size: 13px !important; font-weight: 500 !important; z-index: 110 !important; border: none !important; box-shadow: 0 2px 12px rgba(0,0,0,0.1) !important;" v-show="view3D && view3D.enabled">
+        缩放倍数: {{ zoomLabel }}
+      </div>
+      <div class="three-wrapper" v-show="view3D && view3D.enabled" style="position: relative !important; width: 100% !important; height: calc(100vh - 120px) !important; min-height: 600px !important;">
+        <div ref="threeContainer" class="three-container" style="width: 100% !important; height: 100% !important; border-radius: 8px !important; overflow: hidden !important; background-color: #f0f2f5 !important;"></div>
+        <div class="three-floor-toolbar" style="position: absolute !important; top: 20px !important; left: 20px !important; z-index: 110 !important; background: rgba(15, 23, 42, 0.85) !important; padding: 8px 12px !important; border-radius: 6px !important; color: #e2e8f0 !important; display: flex !important; align-items: center !important; gap: 8px !important;">
+          <span>楼层：</span>
+          <el-radio-group v-model="view3D.floorFilter" size="mini" @change="applyFloorFilter">
+            <el-radio-button label="all">全部</el-radio-button>
+            <el-radio-button v-for="f in getFloorFilterOptions()" :key="f" :label="f">{{ floorIdLabel(f) }}</el-radio-button>
+          </el-radio-group>
+          <el-checkbox v-model="view3D.onlyCurrentFloor" size="mini" @change="applyFloorFilter" style="margin-left:8px">只看当前层</el-checkbox>
+        </div>
+      </div>
     </div>
     <div v-if="navEdit && navEdit.active" class="nav-edit-toolbar" style="position: fixed; top: 0; right: 0; z-index: 1000; background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 4px; color: #fff; display: flex; align-items: center; gap: 8px;">
       <span class="toolbar-title">导航点编辑</span>
       <el-switch v-model="navEdit.showPoints" active-text="显示导航点" inactive-text="隐藏导航点"></el-switch>
       <el-button type="danger" size="mini" :disabled="navEdit.selectedIndex<0" @click="deleteSelectedNavPoint">删除选中导航点</el-button>
       <el-button type="primary" size="mini" @click="finishNavEdit">结束编辑</el-button>
+    </div>
+    <div v-if="dialogVisible_connector">
+      <el-dialog title="新建楼梯/电梯" :visible.sync="dialogVisible_connector" width="560px" :append-to-body="true">
+        <el-button type="primary" size="small" @click="addConnector()" style="margin-bottom:12px">新建连接器</el-button>
+        <el-table :data="connectors" size="mini" border max-height="240">
+          <el-table-column prop="id" label="ID" width="50"></el-table-column>
+          <el-table-column prop="type" label="类型" width="80">
+            <template slot-scope="scope">{{ scope.row.type === 2 ? '电梯' : '楼梯' }}</template>
+          </el-table-column>
+          <el-table-column prop="fromFloor" label="起始层" width="70"></el-table-column>
+          <el-table-column prop="toFloor" label="目标层" width="70"></el-table-column>
+          <el-table-column label="入口(x,y)" width="120">
+            <template slot-scope="scope">{{ (scope.row.entryX||scope.row.x||0).toFixed(1) }}, {{ (scope.row.entryY||scope.row.y||0).toFixed(1) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="120">
+            <template slot-scope="scope">
+              <el-button type="text" size="mini" @click="editConnector(scope.$index)">编辑</el-button>
+              <el-button type="text" size="mini" style="color:#f56c6c" @click="deleteConnector(scope.$index)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div v-if="connectorEdit.active" style="margin-top:16px; padding:12px; background:#f5f7fa; border-radius:4px">
+          <div style="margin-bottom:8px; font-weight:bold">{{ connectorEdit.isNew ? '新建连接器' : '编辑连接器' }}</div>
+          <el-form label-width="90px" size="mini">
+            <el-form-item label="类型">
+              <el-radio-group v-model="connectorEdit.type">
+                <el-radio :label="1">楼梯</el-radio>
+                <el-radio :label="2">电梯</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="起始楼层">
+              <el-input-number v-model="connectorEdit.fromFloor" :min="0" :max="20" controls-position="right"></el-input-number>
+            </el-form-item>
+            <el-form-item label="目标楼层">
+              <el-input-number v-model="connectorEdit.toFloor" :min="0" :max="20" controls-position="right"></el-input-number>
+            </el-form-item>
+            <el-form-item label="入口 X">
+              <el-input-number v-model="connectorEdit.entryX" :precision="2" controls-position="right" style="width:100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="入口 Y">
+              <el-input-number v-model="connectorEdit.entryY" :precision="2" controls-position="right" style="width:100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="出口 X">
+              <el-input-number v-model="connectorEdit.exitX" :precision="2" controls-position="right" style="width:100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="出口 Y">
+              <el-input-number v-model="connectorEdit.exitY" :precision="2" controls-position="right" style="width:100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="容量">
+              <el-input-number v-model="connectorEdit.capacity" :min="1" :max="50" controls-position="right"></el-input-number>
+            </el-form-item>
+            <el-form-item label="通过时间(s)">
+              <el-input-number v-model="connectorEdit.serviceTime" :min="0" :precision="1" controls-position="right"></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" size="mini" @click="saveConnector()">保存</el-button>
+              <el-button size="mini" @click="cancelConnectorEdit()">取消</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+      </el-dialog>
+    </div>
+
+    <div v-if="dialogVisible_newFloor">
+      <el-dialog title="新建楼层" :visible.sync="dialogVisible_newFloor" width="520px" :append-to-body="true">
+        <el-form label-width="110px" size="mini">
+          <el-form-item label="新建到">
+            <el-radio-group v-model="newFloorForm.targetFloor">
+              <el-radio :label="newFloorCandidates.below">{{ floorIdLabel(newFloorCandidates.below) }}</el-radio>
+              <el-radio :label="newFloorCandidates.above" style="margin-left:16px">{{ floorIdLabel(newFloorCandidates.above) }}</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="创建方式">
+            <el-radio-group v-model="newFloorForm.mode">
+              <el-radio label="copy">选择模板（复制其他楼层布局）</el-radio>
+              <el-radio label="empty">新建空层</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item v-if="newFloorForm.mode==='copy'" label="模板楼层">
+            <el-select v-model="newFloorForm.templateFloor" placeholder="请选择模板楼层" style="width:100%">
+              <el-option v-for="f in getFloor2DOptions()" :key="f" :label="floorIdLabel(f)" :value="f"></el-option>
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+          <el-button size="mini" @click="dialogVisible_newFloor=false">取消</el-button>
+          <el-button type="primary" size="mini" @click="confirmCreateNewFloor">创建并切换</el-button>
+        </div>
+      </el-dialog>
     </div>
     <div v-if="dialogVisible_attr">
       <el-dialog
@@ -156,16 +270,13 @@
       <el-form-item label="人数">
         <el-input type="number" v-model="rooms[roomRule.currentID].attr.peoNum" autocomplete="off"></el-input>
       </el-form-item>
-      <el-form-item label="速度 (m/s)">
-        <el-input type="number" v-model="rooms[roomRule.currentID].attr.speed" autocomplete="off"></el-input>
-      </el-form-item>
       <el-form-item label="开始时间 (s)">
         <el-input  v-model="rooms[roomRule.currentID].attr.startTime" autocomplete="off"></el-input>
       </el-form-item>
       <el-form-item label="房间颜色">
         <el-color-picker v-model="rooms[roomRule.currentID].attr.color" show-alpha></el-color-picker>
       </el-form-item>
-  </el-form>
+    </el-form>
   <div slot="footer" class="dialog-footer">
     <el-button type="danger" style="float: left;" @click="dialogVisible_attr = false,delRoom(),draw()">删除房间</el-button>
     <el-button type="primary" @click="dialogVisible_attr = false,changeRoomName(),drawRoomPeo(),draw()">确 定</el-button>
@@ -206,16 +317,8 @@
     label="显示/隐藏"
     width="220">
     <template slot-scope="scope">
-        <el-radio v-model="scope.row.state" :label=true>显示</el-radio>
-        <el-radio v-model="scope.row.state" :label=false>隐藏</el-radio>
-    </template>
-  </el-table-column>
-  <el-table-column
-    prop="default"
-    label="默认值">
-    <template slot-scope="scope">
-      <span v-if="scope.row.element === '房间底色' || scope.row.element === '蒙版颜色' || scope.row.element === '背景颜色' || scope.row.element !== '人物颜色1' || scope.row.element !== '人物颜色2' || scope.row.element === '人口框底色'">-</span>
-      <span v-else>{{ scope.row.default }}</span>
+      <el-radio v-model="scope.row.state" :label="true">显示</el-radio>
+      <el-radio v-model="scope.row.state" :label="false">隐藏</el-radio>
     </template>
   </el-table-column>
   <el-table-column
@@ -267,16 +370,13 @@
       <el-form-item label="人数">
         <el-input type="number" v-model="peos[PeosRule.currentID].attr.peoNum" autocomplete="off"></el-input>
       </el-form-item>
-      <el-form-item label="速度 (m/s)">
-        <el-input type="number" v-model="peos[PeosRule.currentID].attr.speed" autocomplete="off"></el-input>
-      </el-form-item>
       <el-form-item label="开始时间 (s)">
         <el-input  v-model="peos[PeosRule.currentID].attr.startTime" autocomplete="off"></el-input>
       </el-form-item>
       <el-form-item label="人口框颜色">
         <el-color-picker v-model="peos[PeosRule.currentID].attr.color" show-alpha></el-color-picker>
       </el-form-item>
-  </el-form>
+    </el-form>
   <div slot="footer" class="dialog-footer">
     <el-button type="danger" style="float: left;" @click="dialogVisible_attr_3 = false,delPeos();draw();">删除人口框</el-button>
     <el-button type="primary" @click="dialogVisible_attr_3 = false,changePeosName();drawPeosPeo();draw();">确 定</el-button>
@@ -346,23 +446,6 @@
                 size="12px">
               </el-table-column>   
               <el-table-column
-                prop="grd"
-                label="平均剂量/mSv"
-                width="180"
-                sortable
-                :sort-method="(a,b)=>{return a.grd - b.grd}"
-                :formatter="formatToScientificNotation"
-                size="20px">
-              </el-table-column>
-              <el-table-column
-                prop="dis"
-                label="平均距离/m"
-                width="180"
-                sortable
-                :sort-method="(a,b)=>{return a.dis - b.dis}"
-                size="20px">
-              </el-table-column>
-              <el-table-column
                 prop="time"
                 label="平均时间/s"
                 width="180"
@@ -418,23 +501,6 @@
                 :sort-method="(a,b)=>{return a.number - b.number}"
                 size="10px">
               </el-table-column>   
-              <el-table-column
-                prop="grd"
-                label="平均剂量/mSv"
-                width="180"
-                sortable
-                :sort-method="(a,b)=>{return a.grd - b.grd}"
-                :formatter="formatToScientificNotation"
-                size="18px">
-              </el-table-column>
-              <el-table-column
-                prop="dis"
-                label="平均距离/m"
-                width="180"
-                sortable
-                :sort-method="(a,b)=>{return a.dis - b.dis}"
-                size="18px">
-              </el-table-column>
               <el-table-column
                 prop="time"
                 label="平均时间/s"
@@ -507,22 +573,6 @@
           size="18px">
         </el-table-column>
         <el-table-column
-          prop="grd"
-          label="总剂量/mSv"
-          width="180"
-          :sort-method="(a,b)=>{return a.grd - b.grd}"
-          :formatter="formatToScientificNotation"
-          size="18px">
-        </el-table-column>
-        <el-table-column
-          prop="now_pre_grd"
-          label="最大个人剂量/mSv"
-          width="180"
-          :sort-method="(a,b)=>{return a.now_pre_grd - b.now_pre_grd}"
-          :formatter="formatToScientificNotationpre"
-          size="18px">
-        </el-table-column>
-        <el-table-column
           prop="peo"
           label="拥堵区域个数"
           width="180"
@@ -565,7 +615,7 @@
       <el-form-item label="颜色">
         <el-color-picker v-model="ks[numMovingKs].color" show-alpha></el-color-picker>
       </el-form-item>
-  </el-form>
+    </el-form>
   <div slot="footer" class="dialog-footer">
     <el-button type="danger" style="float: left;" @click="dialogVisible_9 = false;delKs();draw();TID=28">删除选定框</el-button>
     <el-button type="primary" @click="dialogVisible_9 = false;draw();TID=28">确 定</el-button>
@@ -592,7 +642,7 @@
       <el-form-item label="容纳人数">
         <el-input type="number" v-model.number="exits[numMovingExit].peoNum" autocomplete="off"></el-input>
       </el-form-item>
-  </el-form>
+    </el-form>
   <div slot="footer" class="dialog-footer">
     <el-button type="danger" style="float: left;" @click="dialogVisible_3 = false;delExport();draw();TID=16">删除集合点</el-button>
     <el-button type="primary" @click="dialogVisible_3 = false;draw();TID=16">确 定</el-button>
@@ -1445,34 +1495,54 @@
 
 /* 项目容器样式 */
 .project-container {
-  background-color: #f8f9fa !important;
+  background-color: #ffffff !important;
   min-height: 100vh;
   padding: 20px;
 }
 
 /* 项目头部样式 */
 .project-header {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-radius: 12px;
-  padding: 15px 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  border: 1px solid #e9ecef;
+  background-color: #ffffff !important;
+  border-radius: 0 !important;
+  padding: 10px 15px !important;
+  margin-bottom: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-bottom: 1px solid #e9ecef !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  overflow-x: auto !important;
+  white-space: nowrap !important;
+  min-height: 60px !important;
 }
 
-/* 按钮行布局 */
 .button-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: nowrap;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: nowrap !important;
+  width: 100%;
 }
 
-/* 按钮组样式 */
 .button-group {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 8px !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+}
+
+/* 覆盖所有可能导致换行的元素样式 */
+.project-header .el-button, 
+.project-header .el-dropdown,
+.project-header .button-group {
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+  display: inline-flex !important;
+  vertical-align: middle !important;
 }
 
 .button-group .el-button {
@@ -1660,4 +1730,75 @@
   color: #909399;
   margin-top: 6px;
 }
-</style>
+
+.render-stage {
+  position: relative;
+  width: 100%;
+  min-height: 620px;
+}
+
+.three-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 620px;
+}
+.three-container {
+  width: 100%;
+  height: 620px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.three-floor-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 12px;
+}
+.three-floor-toolbar .el-radio-group .el-radio-button__inner { padding: 5px 10px; }
+.three-floor-toolbar .el-checkbox { color: #e2e8f0; }
+
+.floor-switch-2d{
+  position: absolute;
+  top: 75px;
+  left: 20px;
+  background: white;
+  padding: 6px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+  border: 1px solid #dcdfe6;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+.floor-switch-2d .floor-switch-label{
+  font-weight: 600;
+  color: #606266;
+}
+.floor-switch-2d .el-radio-group .el-radio-button__inner { padding: 5px 12px; }
+.scale-indicator, .zoom-indicator {
+  position: absolute;
+  top: 75px;
+  right: 20px;
+  background: white;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+  z-index: 10;
+  border: 1px solid #dcdfe6;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+.zoom-indicator {
+  background: rgba(15, 23, 42, 0.8);
+  color: white;
+  border: none;
+}

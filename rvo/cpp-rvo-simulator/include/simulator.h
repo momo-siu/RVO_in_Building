@@ -17,6 +17,11 @@ namespace rvocpp {
         double velocity;
         double startTime;
         int exitId;
+        int floorId = 0;
+        int targetFloorId = 0;
+        int connectorId = -1;
+        int connectorState = 0; // 0: walking, 1: in connector transfer
+        double transferRemainingTime = 0.0;
         std::vector<int> roomIds;
         int graphNodeIndex = -1;
         std::vector<double> waypointXs;
@@ -27,11 +32,13 @@ namespace rvocpp {
     struct Obstacle {
         int id;
         double x1, y1, x2, y2;
+        int floorId = 0;
     };
 
     struct Exit {
         long id;
         double x0, y0, x1, y1;
+        int floorId = 0;
         int capacity;
         std::string name;
     };
@@ -39,7 +46,25 @@ namespace rvocpp {
     struct NavPoint {
         double x, y;
         int state;
+        int floorId = 0;
+        int kind = 0; // 0: normal, 1: stair entry, 2: elevator entry
+        int connectorId = -1;
+        int toFloorId = 0;
         std::vector<int> roomIds;
+    };
+
+    struct Connector {
+        int id = 0;
+        int type = 0; // 1: stair, 2: elevator
+        int fromFloor = 0;
+        int toFloor = 0;
+        double entryX = 0.0;
+        double entryY = 0.0;
+        double exitX = 0.0;
+        double exitY = 0.0;
+        int capacity = 1;
+        double serviceTime = 0.0;
+        int occupancy = 0;
     };
 
     struct SimulationConfig {
@@ -70,6 +95,7 @@ namespace rvocpp {
                           std::vector<Obstacle> obstacles,
                           std::vector<Exit> exits,
                           std::vector<NavPoint> navPoints,
+                          std::vector<Connector> connectors,
                           std::vector<RoomC> rooms,
                           std::vector<PeopleGroupC> peopleGroups);
 
@@ -92,6 +118,7 @@ namespace rvocpp {
             double y;
             double vx;
             double vy;
+            int floorId;
         };
 
         // 输入数据
@@ -99,6 +126,7 @@ namespace rvocpp {
         std::vector<Obstacle> obstacles_;
         std::vector<Exit> exits_;
         std::vector<NavPoint> navPoints_;
+        std::vector<Connector> connectors_;
         std::vector<RoomC> rooms_;
         std::vector<PeopleGroupC> peopleGroups_;
         SimulationConfig config_;
@@ -120,7 +148,15 @@ namespace rvocpp {
         // 结果数据
         struct FrameData {
             int step;
-            std::vector<std::pair<int, std::pair<double, double>>> positions;  // id -> (x, y)
+            struct PositionSnapshot {
+                int id;
+                double x;
+                double y;
+                int floorId;
+                int connectorState;
+                int connectorId;
+            };
+            std::vector<PositionSnapshot> positions;
         };
 
         struct CompletedEvent {
@@ -148,6 +184,9 @@ namespace rvocpp {
         std::pair<double, double> getCurrentTarget(int agentIndex) const;
         bool agentHasWaypoints(int agentIndex) const;
         std::pair<double, double> getExitCenter(int exitId) const;
+        int getExitFloor(int exitId) const;
+        const Connector* selectConnectorForAgent(const Agent& agent) const;
+        Connector* findConnectorById(int connectorId);
         void captureFrame();
         bool writeRawSimulationJson(const std::string& outputDir) const;
         bool rebuildNavigationState();

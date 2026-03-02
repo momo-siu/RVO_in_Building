@@ -89,6 +89,11 @@ bool RVOSimulator::loadFromJsonData(const json& data) {
             agent.velocity = agentNode.value("velocity", 1.0);
             agent.startTime = agentNode.value("startTime", 0.0);
             agent.exitId = agentNode.value("exitId", 0);
+            agent.floorId = agentNode.value("floorId", 0);
+            agent.targetFloorId = agentNode.value("targetFloorId", agent.floorId);
+            agent.connectorId = agentNode.value("connectorId", -1);
+            agent.connectorState = agentNode.value("connectorState", 0);
+            agent.transferRemainingTime = agentNode.value("transferRemainingTime", 0.0);
             agent.graphNodeIndex = agentNode.value("graphNodeIndex", -1);
             if (agentNode.contains("roomIds") && agentNode["roomIds"].is_array()) {
                 for (const auto& roomId : agentNode["roomIds"]) {
@@ -119,6 +124,7 @@ bool RVOSimulator::loadFromJsonData(const json& data) {
             obstacle.y1 = obstacleNode.value("y1", 0.0);
             obstacle.x2 = obstacleNode.value("x2", 0.0);
             obstacle.y2 = obstacleNode.value("y2", 0.0);
+            obstacle.floorId = obstacleNode.value("floorId", 0);
             obstacles_.push_back(obstacle);
         }
     }
@@ -132,6 +138,7 @@ bool RVOSimulator::loadFromJsonData(const json& data) {
             exit.y0 = exitNode.value("y0", 0.0);
             exit.x1 = exitNode.value("x1", 0.0);
             exit.y1 = exitNode.value("y1", 0.0);
+            exit.floorId = exitNode.value("floorId", 0);
             exit.capacity = exitNode.value("capacity", 0);
             exit.name = exitNode.value("name", std::string("exit"));
             exits_.push_back(exit);
@@ -145,6 +152,10 @@ bool RVOSimulator::loadFromJsonData(const json& data) {
             nav.x = navNode.value("x", 0.0);
             nav.y = navNode.value("y", 0.0);
             nav.state = navNode.value("state", 0);
+            nav.floorId = navNode.value("floorId", 0);
+            nav.kind = navNode.value("kind", 0);
+            nav.connectorId = navNode.value("connectorId", -1);
+            nav.toFloorId = navNode.value("toFloorId", nav.floorId);
             if (navNode.contains("roomIds") && navNode["roomIds"].is_array()) {
                 for (const auto& roomId : navNode["roomIds"]) {
                     nav.roomIds.push_back(roomId.get<int>());
@@ -159,6 +170,7 @@ bool RVOSimulator::loadFromJsonData(const json& data) {
         for (const auto& roomNode : data["rooms"]) {
             RoomC room;
             room.rid = roomNode.value("rid", 0);
+            room.floorId = roomNode.value("floorId", 0);
             room.peopleCount = 0;
             if (roomNode.contains("peos") && roomNode["peos"].is_array()) {
                 room.peopleCount = static_cast<int>(roomNode["peos"].size());
@@ -185,6 +197,7 @@ bool RVOSimulator::loadFromJsonData(const json& data) {
             } else {
                 group.id = groupNode.value("id", 0);
             }
+            group.floorId = groupNode.value("floorId", 0);
             group.peopleCount = 0;
             if (groupNode.contains("peos") && groupNode["peos"].is_array()) {
                 group.peopleCount = static_cast<int>(groupNode["peos"].size());
@@ -199,6 +212,24 @@ bool RVOSimulator::loadFromJsonData(const json& data) {
                 }
             }
             peopleGroups_.push_back(std::move(group));
+        }
+    }
+
+    connectors_.clear();
+    if (data.contains("connectors") && data["connectors"].is_array()) {
+        for (const auto& connNode : data["connectors"]) {
+            Connector connector;
+            connector.id = connNode.value("id", 0);
+            connector.type = connNode.value("type", 0);
+            connector.fromFloor = connNode.value("fromFloor", 0);
+            connector.toFloor = connNode.value("toFloor", 0);
+            connector.entryX = connNode.value("entryX", connNode.value("x", 0.0));
+            connector.entryY = connNode.value("entryY", connNode.value("y", 0.0));
+            connector.exitX = connNode.value("exitX", connector.entryX);
+            connector.exitY = connNode.value("exitY", connector.entryY);
+            connector.capacity = std::max(connNode.value("capacity", 1), 1);
+            connector.serviceTime = std::max(connNode.value("serviceTime", 0.0), 0.0);
+            connectors_.push_back(connector);
         }
     }
 
@@ -218,6 +249,7 @@ bool RVOSimulator::loadFromData(const SimulationConfig& config,
                                 std::vector<Obstacle> obstacles,
                                 std::vector<Exit> exits,
                                 std::vector<NavPoint> navPoints,
+                                std::vector<Connector> connectors,
                                 std::vector<RoomC> rooms,
                                 std::vector<PeopleGroupC> peopleGroups) {
     config_ = config;
@@ -225,6 +257,7 @@ bool RVOSimulator::loadFromData(const SimulationConfig& config,
     obstacles_ = std::move(obstacles);
     exits_ = std::move(exits);
     navPoints_ = std::move(navPoints);
+    connectors_ = std::move(connectors);
     rooms_ = std::move(rooms);
     peopleGroups_ = std::move(peopleGroups);
 
@@ -244,6 +277,7 @@ bool RVOSimulator::rebuildNavigationState() {
             np.x = p.x;
             np.y = p.y;
             np.state = p.state;
+            np.floorId = p.floorId;
             np.roomIds = p.roomIds;
             navPointsC.push_back(std::move(np));
         }
@@ -256,6 +290,7 @@ bool RVOSimulator::rebuildNavigationState() {
             ob.y1 = o.y1;
             ob.x2 = o.x2;
             ob.y2 = o.y2;
+            ob.floorId = o.floorId;
             obstaclesC.push_back(ob);
         }
 
@@ -266,11 +301,15 @@ bool RVOSimulator::rebuildNavigationState() {
             ex.cx = (e.x0 + e.x1) * 0.5;
             ex.cy = (e.y0 + e.y1) * 0.5;
             ex.id = static_cast<int>(e.id);
+            ex.floorId = e.floorId;
             exitsC.push_back(ex);
         }
 
         navGrid_ = std::make_unique<NavGrid>(navPointsC, obstaclesC, exitsC, rooms_, peopleGroups_);
         navLines_ = navGrid_->generateLines();
+        for (auto& connector : connectors_) {
+            connector.occupancy = 0;
+        }
 
         frames_.clear();
         completedEvents_.clear();
@@ -325,7 +364,15 @@ bool RVOSimulator::run() {
             for (const auto& active : activeAgents_) {
                 int agentIndex = active.agentIndex;
                 if (agentIndex >= 0 && agentIndex < static_cast<int>(agents_.size())) {
-                    frame.positions.push_back({agents_[agentIndex].id, {active.x, active.y}});
+                    const auto& agent = agents_[agentIndex];
+                    FrameData::PositionSnapshot snapshot{};
+                    snapshot.id = agent.id;
+                    snapshot.x = active.x;
+                    snapshot.y = active.y;
+                    snapshot.floorId = agent.floorId;
+                    snapshot.connectorState = agent.connectorState;
+                    snapshot.connectorId = agent.connectorId;
+                    frame.positions.push_back(snapshot);
                 }
             }
             frames_.push_back(std::move(frame));
@@ -384,8 +431,8 @@ bool RVOSimulator::saveResults() {
     for (const auto& frame : frames_) {
         resultFile << frameIndex << " " << frame.positions.size();
         for (const auto& pos : frame.positions) {
-            resultFile << " " << pos.first << " "
-                      << pos.second.first << " " << pos.second.second;
+            resultFile << " " << pos.id << " "
+                      << pos.x << " " << pos.y;
         }
         resultFile << std::endl;
         ++frameIndex;
@@ -450,6 +497,12 @@ void RVOSimulator::initializeSimulator() {
 
     for (auto& agent : agents_) {
         agent.waypointCursor = std::min(agent.waypointCursor, agent.waypointXs.size());
+        if (agent.targetFloorId == 0 && agent.floorId != 0) {
+            agent.targetFloorId = agent.floorId;
+        }
+        agent.connectorId = -1;
+        agent.connectorState = 0;
+        agent.transferRemainingTime = 0.0;
     }
 
     std::fill(isActive_.begin(), isActive_.end(), 0);
@@ -477,6 +530,7 @@ void RVOSimulator::addAgentToSimulator(int agentIndex) {
     active.y = agent.y;
     active.vx = 0.0;
     active.vy = 0.0;
+    active.floorId = agent.floorId;
     activeAgents_.push_back(active);
     if (agentIndex < static_cast<int>(isActive_.size())) {
         isActive_[agentIndex] = 1;
@@ -498,6 +552,34 @@ void RVOSimulator::stepAgents() {
         auto& agent = agents_[agentIndex];
         double posX = active.x;
         double posY = active.y;
+
+        if (agent.connectorState == 1 && agent.connectorId >= 0) {
+            Connector* connector = findConnectorById(agent.connectorId);
+            if (connector != nullptr) {
+                const double step = std::max(kTimeStep, 1e-3);
+                agent.transferRemainingTime = std::max(0.0, agent.transferRemainingTime - step);
+                if (agent.transferRemainingTime <= kEpsilon) {
+                    active.x = connector->exitX;
+                    active.y = connector->exitY;
+                    active.floorId = connector->toFloor;
+                    agent.x = active.x;
+                    agent.y = active.y;
+                    agent.floorId = connector->toFloor;
+                    agent.connectorState = 0;
+                    agent.connectorId = -1;
+                    connector->occupancy = std::max(0, connector->occupancy - 1);
+                    posX = active.x;
+                    posY = active.y;
+                } else {
+                    active.vx = 0.0;
+                    active.vy = 0.0;
+                    continue;
+                }
+            } else {
+                agent.connectorState = 0;
+                agent.connectorId = -1;
+            }
+        }
 
         advanceWaypointsIfNeeded(agentIndex, posX, posY);
 
@@ -528,6 +610,9 @@ void RVOSimulator::stepAgents() {
                 continue;
             }
             if (agentCompleted_[otherIndex]) {
+                continue;
+            }
+            if (agents_[otherIndex].floorId != agent.floorId || agents_[otherIndex].connectorState != 0) {
                 continue;
             }
             double dx = posX - other.x;
@@ -561,9 +646,28 @@ void RVOSimulator::stepAgents() {
         active.vy = desiredVelY;
         active.x = newX;
         active.y = newY;
+        active.floorId = agent.floorId;
 
         agents_[agentIndex].x = newX;
         agents_[agentIndex].y = newY;
+
+        const Connector* connector = selectConnectorForAgent(agent);
+        if (connector != nullptr) {
+            const double cdx = connector->entryX - newX;
+            const double cdy = connector->entryY - newY;
+            const double reachSq = cdx * cdx + cdy * cdy;
+            if (reachSq <= goalThreshold_ * goalThreshold_) {
+                Connector* mutableConnector = findConnectorById(connector->id);
+                if (mutableConnector != nullptr && mutableConnector->occupancy < std::max(mutableConnector->capacity, 1)) {
+                    mutableConnector->occupancy += 1;
+                    agent.connectorState = 1;
+                    agent.connectorId = mutableConnector->id;
+                    agent.transferRemainingTime = std::max(mutableConnector->serviceTime, kTimeStep);
+                    active.vx = 0.0;
+                    active.vy = 0.0;
+                }
+            }
+        }
     }
 }
 
@@ -575,6 +679,9 @@ void RVOSimulator::updateCompletedAgents() {
             continue;
         }
         if (agentCompleted_[agentIndex]) {
+            continue;
+        }
+        if (agents_[agentIndex].connectorState != 0) {
             continue;
         }
 
@@ -591,15 +698,18 @@ void RVOSimulator::updateCompletedAgents() {
             dy = target.second - active.y;
             distSq = dx * dx + dy * dy;
             if (distSq <= goalThreshold_ * goalThreshold_) {
-                agentCompleted_[agentIndex] = true;
-                anyRemoval = true;
+                const int exitFloor = getExitFloor(agents_[agentIndex].exitId);
+                if (exitFloor == agents_[agentIndex].floorId) {
+                    agentCompleted_[agentIndex] = true;
+                    anyRemoval = true;
 
-                CompletedEvent event;
-                event.agentId = agents_[agentIndex].id;
-                event.exitId = agents_[agentIndex].exitId;
-                event.frameIndex = currentStep_;
-                event.time = static_cast<double>(currentStep_) * kTimeStep;
-                completedEvents_.push_back(event);
+                    CompletedEvent event;
+                    event.agentId = agents_[agentIndex].id;
+                    event.exitId = agents_[agentIndex].exitId;
+                    event.frameIndex = currentStep_;
+                    event.time = static_cast<double>(currentStep_) * kTimeStep;
+                    completedEvents_.push_back(event);
+                }
             }
         }
     }
@@ -641,11 +751,19 @@ void RVOSimulator::advanceWaypointsIfNeeded(int agentIndex, double posX, double 
 }
 
 std::pair<double, double> RVOSimulator::getCurrentTarget(int agentIndex) const {
+    if (agentIndex < 0 || agentIndex >= static_cast<int>(agents_.size())) {
+        return {0.0, 0.0};
+    }
+    const auto& agent = agents_[agentIndex];
+    const Connector* connector = selectConnectorForAgent(agent);
+    if (connector != nullptr) {
+        return {connector->entryX, connector->entryY};
+    }
+
     if (!agentHasWaypoints(agentIndex)) {
         return agentGoals_[agentIndex];
     }
 
-    const auto& agent = agents_[agentIndex];
     if (agent.waypointCursor < agent.waypointXs.size()) {
         return {agent.waypointXs[agent.waypointCursor], agent.waypointYs[agent.waypointCursor]};
     }
@@ -663,6 +781,39 @@ std::pair<double, double> RVOSimulator::getExitCenter(int exitId) const {
     double centerX = (it->x0 + it->x1) / 2.0;
     double centerY = (it->y0 + it->y1) / 2.0;
     return {centerX, centerY};
+}
+
+int RVOSimulator::getExitFloor(int exitId) const {
+    auto it = std::find_if(exits_.begin(), exits_.end(), [&](const Exit& e) {
+        return static_cast<int>(e.id) == exitId;
+    });
+    if (it == exits_.end()) {
+        return 0;
+    }
+    return it->floorId;
+}
+
+const Connector* RVOSimulator::selectConnectorForAgent(const Agent& agent) const {
+    if (agent.floorId == agent.targetFloorId) {
+        return nullptr;
+    }
+    auto it = std::find_if(connectors_.begin(), connectors_.end(), [&](const Connector& c) {
+        return c.fromFloor == agent.floorId && c.toFloor == agent.targetFloorId;
+    });
+    if (it == connectors_.end()) {
+        return nullptr;
+    }
+    return &(*it);
+}
+
+Connector* RVOSimulator::findConnectorById(int connectorId) {
+    auto it = std::find_if(connectors_.begin(), connectors_.end(), [&](const Connector& c) {
+        return c.id == connectorId;
+    });
+    if (it == connectors_.end()) {
+        return nullptr;
+    }
+    return &(*it);
 }
 
 bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
@@ -690,7 +841,8 @@ bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
         {"imgX0", config_.imgX0},
         {"imgY0", config_.imgY0},
         {"sT", config_.sT},
-        {"fileName", config_.fileName}
+        {"fileName", config_.fileName},
+        {"agentCount", static_cast<int>(agents_.size())}
     };
     rawFile << "  \"config\": " << config.dump() << ",\n";
 
@@ -703,11 +855,35 @@ bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
             {"y0", exit.y0},
             {"x1", exit.x1},
             {"y1", exit.y1},
+            {"floorId", exit.floorId},
             {"capacity", exit.capacity},
             {"name", exit.name}
         };
         rawFile << "    " << exitJson.dump();
         if (i + 1 < exits_.size()) {
+            rawFile << ",";
+        }
+        rawFile << "\n";
+    }
+    rawFile << "  ],\n";
+
+    rawFile << "  \"connectors\": [\n";
+    for (size_t i = 0; i < connectors_.size(); ++i) {
+        const auto& connector = connectors_[i];
+        json connectorJson = {
+            {"id", connector.id},
+            {"type", connector.type},
+            {"fromFloor", connector.fromFloor},
+            {"toFloor", connector.toFloor},
+            {"entryX", connector.entryX},
+            {"entryY", connector.entryY},
+            {"exitX", connector.exitX},
+            {"exitY", connector.exitY},
+            {"capacity", connector.capacity},
+            {"serviceTime", connector.serviceTime}
+        };
+        rawFile << "    " << connectorJson.dump();
+        if (i + 1 < connectors_.size()) {
             rawFile << ",";
         }
         rawFile << "\n";
@@ -723,9 +899,12 @@ bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
         json agentsArray = json::array();
         for (const auto& pos : frame.positions) {
             agentsArray.push_back({
-                {"id", pos.first},
-                {"x", pos.second.first},
-                {"y", pos.second.second}
+                {"id", pos.id},
+                {"x", pos.x},
+                {"y", pos.y},
+                {"floorId", pos.floorId},
+                {"connectorState", pos.connectorState},
+                {"connectorId", pos.connectorId}
             });
         }
         frameJson["agents"] = std::move(agentsArray);

@@ -201,6 +201,7 @@ public class EvaluateController {
                 }
                 List<HashMap> rooms = (List<HashMap>) request.get("rooms");
                 List<HashMap> peosList = (List<HashMap>) request.get("peos");
+                List<HashMap> connectors = (List<HashMap>) request.get("connectors");
 
                 int status = (Integer) (request.get("status")) ;  // 模拟状态，1为路径优先，2为剂量优先
                 int kw = (Integer) (request.get("k")) ;  // 模拟时长，0-10；0-20；0-30；0-40
@@ -218,6 +219,9 @@ public class EvaluateController {
                         if(((Number) walls.get(j).get("x")).doubleValue() < MinPos || ((Number) walls.get(j + 1).get("x")).doubleValue() < MinPos) { continue; }
                         Pos A = new Pos(((Number) walls.get(j).get("x")).doubleValue(), ((Number) walls.get(j).get("y")).doubleValue());
                         Pos B = new Pos(((Number) walls.get(j + 1).get("x")).doubleValue(), ((Number) walls.get(j + 1).get("y")).doubleValue());
+                        int wallFloorId = getIntOrDefault(walls.get(j).get("floorId"), getIntOrDefault(rooms.get(i).get("floorId"), 0));
+                        A.setFloorId(wallFloorId);
+                        B.setFloorId(wallFloorId);
                         obstacles.add(new Obstacle(obstacles.size() + 1, A, B));
                     }
                 }
@@ -226,6 +230,9 @@ public class EvaluateController {
                 for(int i = 0; i < exitLists.size(); i++) {
                     Pos exitA = new Pos(((Number) exitLists.get(i).get("x0")).doubleValue(), ((Number) exitLists.get(i).get("y0")).doubleValue());
                     Pos exitB = new Pos(((Number) exitLists.get(i).get("x1")).doubleValue(), ((Number) exitLists.get(i).get("y2")).doubleValue());
+                    int exitFloorId = getIntOrDefault(exitLists.get(i).get("floorId"), 0);
+                    exitA.setFloorId(exitFloorId);
+                    exitB.setFloorId(exitFloorId);
                     int numOfPerson = ((Number) exitLists.get(i).get("peoNum")).intValue();
                     String exitName = (String) exitLists.get(i).get("name");
                     Exit exit = new Exit(Long.valueOf((int)exitLists.get(i).get("id")) , exitA, exitB, numOfPerson,exitName);
@@ -235,6 +242,9 @@ public class EvaluateController {
                 for(int i = 0; i < exitLists1.size(); i++) {
                     Pos exitA = new Pos(((Number) exitLists1.get(i).get("x0")).doubleValue(), ((Number) exitLists1.get(i).get("y0")).doubleValue());
                     Pos exitB = new Pos(((Number) exitLists1.get(i).get("x1")).doubleValue(), ((Number) exitLists1.get(i).get("y2")).doubleValue());
+                    int exitFloorId = getIntOrDefault(exitLists1.get(i).get("floorId"), 0);
+                    exitA.setFloorId(exitFloorId);
+                    exitB.setFloorId(exitFloorId);
                     int numOfPerson = ((Number) exitLists1.get(i).get("peoNum")).intValue();
                     String exitName = (String) exitLists1.get(i).get("name");
                     Exit exit = new Exit(Long.valueOf((int)exitLists1.get(i).get("id")), exitA, exitB, numOfPerson,exitName);
@@ -244,8 +254,13 @@ public class EvaluateController {
                 List<Pos> points = new ArrayList<>();
                 for (int i = 0; i < navPos.size(); i++) {
                     int state = 1;
+                    int floorId = getIntOrDefault(navPos.get(i).get("floorId"), 0);
                     ArrayList<Integer> room_id = new ArrayList<>();
                     Pos temp1 = new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue());
+                    temp1.setFloorId(floorId);
+                    temp1.setKind(getIntOrDefault(navPos.get(i).get("kind"), 0));
+                    temp1.setConnectorId(getIntOrDefault(navPos.get(i).get("connectorId"), -1));
+                    temp1.setToFloorId(getIntOrDefault(navPos.get(i).get("toFloorId"), floorId));
                     for(int j = 0; j < rooms.size();j++){
                         List<HashMap> walls = (List<HashMap>) rooms.get(j).get("walls");
                         ArrayList<Pos> temp_points = new ArrayList<Pos>();
@@ -260,7 +275,12 @@ public class EvaluateController {
                             room_id.add(j);
                         }
                     }
-                    points.add(new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue(),state,room_id));
+                    Pos navPoint = new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue(),state,room_id);
+                    navPoint.setFloorId(floorId);
+                    navPoint.setKind(getIntOrDefault(navPos.get(i).get("kind"), 0));
+                    navPoint.setConnectorId(getIntOrDefault(navPos.get(i).get("connectorId"), -1));
+                    navPoint.setToFloorId(getIntOrDefault(navPos.get(i).get("toFloorId"), floorId));
+                    points.add(navPoint);
                 }
                 try {
                     blueprintServer.saveBlueprintToFile(bID, json);
@@ -383,12 +403,17 @@ public class EvaluateController {
                         }
                     }
                     List<HashMap> peos = (List<HashMap>) rooms.get(i).get("peos");
+                    int roomFloorId = getIntOrDefault(rooms.get(i).get("floorId"), 0);
 
                     for (int j = 0; j < peos.size(); j++) {
                         Agent agent = new Agent();
                         agent.setId(agents.size());
                         agent.setRoom_id(room_id);
-                        agent.setPos(new Pos(((Number) peos.get(j).get("x")).doubleValue(), ((Number) peos.get(j).get("y")).doubleValue()));
+                        Pos agentPos = new Pos(((Number) peos.get(j).get("x")).doubleValue(), ((Number) peos.get(j).get("y")).doubleValue());
+                        agentPos.setFloorId(getIntOrDefault(peos.get(j).get("floorId"), roomFloorId));
+                        agent.setPos(agentPos);
+                        agent.setFloorId(agentPos.getFloorId());
+                        agent.setTargetFloorId(agentPos.getFloorId());
                         // 设置前往的出口
                         for (int w = 0; w < exits.size(); w++) {
                             if (roomToExit[i][w] <= 0) continue;
@@ -413,7 +438,9 @@ public class EvaluateController {
                             }
                             if (isCoincide) {
                                 // xy坐标都随机增加或减少0.3 - 0.6
-                                agent.setPos(new Pos(agent.getPos().getX() + (double) ((random.nextInt(2) == 0 ? -1 : 1) * (random.nextInt(30) + 30)) / 100, agent.getPos().getY() + (double) ((random.nextInt(2) == 0 ? -1 : 1) * (random.nextInt(30) + 30)) / 100));
+                                Pos jitterPos = new Pos(agent.getPos().getX() + (double) ((random.nextInt(2) == 0 ? -1 : 1) * (random.nextInt(30) + 30)) / 100, agent.getPos().getY() + (double) ((random.nextInt(2) == 0 ? -1 : 1) * (random.nextInt(30) + 30)) / 100);
+                                jitterPos.setFloorId(agent.getFloorId() == null ? 0 : agent.getFloorId());
+                                agent.setPos(jitterPos);
                             }
                         }
                         Object o = ((HashMap) rooms.get(i).get("attr")).get("startTime");
@@ -464,12 +491,17 @@ public class EvaluateController {
 
 
                     List<HashMap> peos = (List<HashMap>) peosList.get(i).get("peos");
+                    int groupFloorId = getIntOrDefault(peosList.get(i).get("floorId"), 0);
                     for (int j = 0; j < peos.size(); j++) {
                         Agent agent = new Agent();
                         agent.setId(agents.size());
 
                         agent.setRoom_id(room_id);
-                        agent.setPos(new Pos(((Number) peos.get(j).get("x")).doubleValue(), ((Number) peos.get(j).get("y")).doubleValue()));
+                        Pos agentPos = new Pos(((Number) peos.get(j).get("x")).doubleValue(), ((Number) peos.get(j).get("y")).doubleValue());
+                        agentPos.setFloorId(getIntOrDefault(peos.get(j).get("floorId"), groupFloorId));
+                        agent.setPos(agentPos);
+                        agent.setFloorId(agentPos.getFloorId());
+                        agent.setTargetFloorId(agentPos.getFloorId());
                         // 设置前往的出口
                         for (int w = 0; w < exits.size(); w++) {
                             if (roomToExit[i + rooms.size()][w] <= 0) continue;
@@ -495,7 +527,9 @@ public class EvaluateController {
                             }
                             if (isCoincide) {
                                 // xy坐标都随机增加或减少0.3 - 0.6
-                                agent.setPos(new Pos(agent.getPos().getX() + (double) ((random.nextInt(2) == 0 ? -1 : 1) * (random.nextInt(30) + 30)) / 100, agent.getPos().getY() + (double) ((random.nextInt(2) == 0 ? -1 : 1) * (random.nextInt(30) + 30)) / 100));
+                                Pos jitterPos = new Pos(agent.getPos().getX() + (double) ((random.nextInt(2) == 0 ? -1 : 1) * (random.nextInt(30) + 30)) / 100, agent.getPos().getY() + (double) ((random.nextInt(2) == 0 ? -1 : 1) * (random.nextInt(30) + 30)) / 100);
+                                jitterPos.setFloorId(agent.getFloorId() == null ? 0 : agent.getFloorId());
+                                agent.setPos(jitterPos);
                             }
                         }
 
@@ -509,7 +543,7 @@ public class EvaluateController {
                 }
                 try {
                     System.out.println("数据预加载成功，模拟人数" + agents.size());
-                    rvoServer.calculatePathWithNav(bID, agents, obstacles, exits, points, scale, rooms, peosList, status,weight, k, file,navGrid,exitsAll,imgX0,imgY0,sT);
+                    rvoServer.calculatePathWithNav(bID, agents, obstacles, exits, points, scale, rooms, peosList, connectors, status,weight, k, file,navGrid,exitsAll,imgX0,imgY0,sT);
                     RvoServerC.mutex = 1;
                     //等待任务结束
                     while(RvoServerC.mutex != 0) {
@@ -1697,6 +1731,22 @@ public class EvaluateController {
             return  (int)o;
         }
         return  num;
+    }
+    private int getIntOrDefault(Object value, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            if (value instanceof Number number) {
+                return number.intValue();
+            }
+            if (value instanceof String text && !text.isBlank()) {
+                return Integer.parseInt(text);
+            }
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+        return defaultValue;
     }
     public double transDouble(Object o){
         double num = 0;

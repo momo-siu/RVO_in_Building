@@ -37,23 +37,16 @@ public class BlueprintController {
     @PostMapping("/createBlueprint")
     public Result createBlueprint(@RequestParam(value = "background", required = false) MultipartFile background,
                                   @RequestParam(value = "files", required = false) MultipartFile[] files,
-                                  @RequestParam(value = "config", required = false) MultipartFile config,
-                                  @RequestParam("name") String name,
-                                  @RequestParam("description") String description,
-                                  @RequestParam("addr") String addr) throws IOException {
+                                  @RequestParam(value = "name") String name,
+                                  @RequestParam(value = "description") String description,
+                                  @RequestParam(value = "addr") String addr,
+                                  @RequestParam(value = "mapWidth") int mapWidth,
+                                  @RequestParam(value = "mapHeight") int mapHeight) throws IOException {
 
-
-        //解析配置文件
-        InputStream inputStream = config.getInputStream();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-        String s = reader.readLine();
-        String[] size = s.split(",");
-
-        reader.close();
-
-        int id = blueprintServer.createBlueprint(name, description, backgroundPath, (int)(Double.parseDouble(size[1])), (int)(Double.parseDouble(size[0])), addr);
+        int id = blueprintServer.createBlueprint(name, description, "", mapHeight, mapWidth, addr);
 
         //创建文件夹 - 修复路径，确保项目保存在 rvo/source/{id} 目录下
+        String projectPath = System.getProperty("user.dir");
         File projectFolder = new File(projectPath + "/rvo/source/" + String.valueOf(id));
         if(!projectFolder.exists()) {
             if (!projectFolder.mkdirs()) {
@@ -62,45 +55,26 @@ public class BlueprintController {
         }
 
         //保存背景图片
-        String originalFileName = background.getOriginalFilename();
-        String newFileName = "background" + originalFileName.substring(originalFileName.lastIndexOf("."));
-        background.transferTo(new File(projectFolder, newFileName));
-        String backgroundPath = "source/" + id + "/" + newFileName; //前端访问路径
-
-        blueprintServer.saveBackground(id, backgroundPath);
-
-        //保存剂量场文件
-        File grdFile = new File(projectFolder, "GRD_Data");
-        if (!grdFile.mkdirs()) {
-            return Result.error("Server file error");
+        if (background != null && !background.isEmpty()) {
+            String originalFileName = background.getOriginalFilename();
+            String newFileName = "background" + originalFileName.substring(originalFileName.lastIndexOf("."));
+            background.transferTo(new File(projectFolder, newFileName));
+            String backgroundPath = "source/" + id + "/" + newFileName; //前端访问路径
+            blueprintServer.saveBackground(id, backgroundPath);
         }
 
-        int originalLength = files.length;
-        File tempFile = null;
-        for (int i = 0; i < Math.min(originalLength,12); i++) {
-//            files[i].transferTo(
-//                    new File(fileDString + "/" + StringUtils.cleanPath(files[i].getOriginalFilename())));
-            File targetFile = new File(grdFile, "Effective_0" + (i + 1) + "-00.GRD");
-            files[i].transferTo(targetFile);
-            if (i == originalLength - 1) {
-                // 保存最后一个文件到临时文件
-                tempFile = targetFile;
+        //保存剂量场文件 (如果前端以后还传的话，保持逻辑健壮但不强求)
+        if (files != null && files.length > 0) {
+            File grdFile = new File(projectFolder, "GRD_Data");
+            if (!grdFile.exists()) {
+                grdFile.mkdirs();
+            }
+            int originalLength = files.length;
+            for (int i = 0; i < Math.min(originalLength, 12); i++) {
+                File targetFile = new File(grdFile, "Effective_0" + (i + 1) + "-00.GRD");
+                files[i].transferTo(targetFile);
             }
         }
-
-        // 如果原始文件数量少于12，进行补充
-        if (originalLength < 12 && tempFile != null) {
-            String lastFileName = tempFile.getName();
-
-            // 补充文件
-            for (int i = originalLength; i < 12; i++) {
-
-                // 从临时文件创建新文件副本
-                File newFile = new File(grdFile, "Effective_0" + (i + 1) + "-00.GRD");
-                Files.copy(tempFile.toPath(), newFile.toPath());
-            }
-        }
-
 
         return Result.success(id);
     }

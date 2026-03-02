@@ -233,6 +233,11 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
         jfieldID aVelFid = env->GetFieldID(agentCls, "velocity", "D");
         jfieldID aStartFid = env->GetFieldID(agentCls, "startTime", "D");
         jfieldID aExitIdFid = env->GetFieldID(agentCls, "exitId", "I");
+        jfieldID aFloorIdFid = env->GetFieldID(agentCls, "floorId", "I");
+        jfieldID aTargetFloorIdFid = env->GetFieldID(agentCls, "targetFloorId", "I");
+        jfieldID aConnectorIdFid = env->GetFieldID(agentCls, "connectorId", "I");
+        jfieldID aConnectorStateFid = env->GetFieldID(agentCls, "connectorState", "I");
+        jfieldID aTransferRemainingTimeFid = env->GetFieldID(agentCls, "transferRemainingTime", "D");
         jfieldID aGraphNodeFid = env->GetFieldID(agentCls, "graphNodeIndex", "I");
         jfieldID aRoomIdsFid = env->GetFieldID(agentCls, "roomIds", "Ljava/util/List;");
         jfieldID aWaypointXsFid = env->GetFieldID(agentCls, "waypointXs", "Ljava/util/List;");
@@ -248,6 +253,11 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
             a.velocity = env->GetDoubleField(agentObj, aVelFid);
             a.startTime = env->GetDoubleField(agentObj, aStartFid);
             a.exitId = env->GetIntField(agentObj, aExitIdFid);
+            a.floorId = env->GetIntField(agentObj, aFloorIdFid);
+            a.targetFloorId = env->GetIntField(agentObj, aTargetFloorIdFid);
+            a.connectorId = env->GetIntField(agentObj, aConnectorIdFid);
+            a.connectorState = env->GetIntField(agentObj, aConnectorStateFid);
+            a.transferRemainingTime = env->GetDoubleField(agentObj, aTransferRemainingTimeFid);
             a.graphNodeIndex = env->GetIntField(agentObj, aGraphNodeFid);
 
             jobject roomIdsList = env->GetObjectField(agentObj, aRoomIdsFid);
@@ -275,6 +285,7 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
         jfieldID oy1Fid = env->GetFieldID(obstacleCls, "y1", "D");
         jfieldID ox2Fid = env->GetFieldID(obstacleCls, "x2", "D");
         jfieldID oy2Fid = env->GetFieldID(obstacleCls, "y2", "D");
+        jfieldID oFloorIdFid = env->GetFieldID(obstacleCls, "floorId", "I");
 
         for (int i = 0; i < obstacleCount; ++i) {
             jobject obstacleObj = getListElement(env, obstaclesListObj, i);
@@ -285,6 +296,7 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
             o.y1 = env->GetDoubleField(obstacleObj, oy1Fid);
             o.x2 = env->GetDoubleField(obstacleObj, ox2Fid);
             o.y2 = env->GetDoubleField(obstacleObj, oy2Fid);
+            o.floorId = env->GetIntField(obstacleObj, oFloorIdFid);
             obstacles.push_back(o);
             env->DeleteLocalRef(obstacleObj);
         }
@@ -302,6 +314,7 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
         jfieldID ey0Fid = env->GetFieldID(exitCls, "y0", "D");
         jfieldID ex1Fid = env->GetFieldID(exitCls, "x1", "D");
         jfieldID ey1Fid = env->GetFieldID(exitCls, "y1", "D");
+        jfieldID eFloorIdFid = env->GetFieldID(exitCls, "floorId", "I");
         jfieldID eCapFid = env->GetFieldID(exitCls, "capacity", "I");
         jfieldID eNameFid = env->GetFieldID(exitCls, "name", "Ljava/lang/String;");
 
@@ -314,6 +327,7 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
             e.y0 = env->GetDoubleField(exitObj, ey0Fid);
             e.x1 = env->GetDoubleField(exitObj, ex1Fid);
             e.y1 = env->GetDoubleField(exitObj, ey1Fid);
+            e.floorId = env->GetIntField(exitObj, eFloorIdFid);
             e.capacity = env->GetIntField(exitObj, eCapFid);
             jstring jName = static_cast<jstring>(env->GetObjectField(exitObj, eNameFid));
             e.name = JStringToUtf8(env, jName);
@@ -332,6 +346,10 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
         jfieldID nxFid = env->GetFieldID(navCls, "x", "D");
         jfieldID nyFid = env->GetFieldID(navCls, "y", "D");
         jfieldID nStateFid = env->GetFieldID(navCls, "state", "I");
+        jfieldID nFloorIdFid = env->GetFieldID(navCls, "floorId", "I");
+        jfieldID nKindFid = env->GetFieldID(navCls, "kind", "I");
+        jfieldID nConnectorIdFid = env->GetFieldID(navCls, "connectorId", "I");
+        jfieldID nToFloorIdFid = env->GetFieldID(navCls, "toFloorId", "I");
         jfieldID nRoomIdsFid = env->GetFieldID(navCls, "roomIds", "Ljava/util/List;");
 
         for (int i = 0; i < navCount; ++i) {
@@ -341,6 +359,10 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
             np.x = env->GetDoubleField(navObj, nxFid);
             np.y = env->GetDoubleField(navObj, nyFid);
             np.state = env->GetIntField(navObj, nStateFid);
+            np.floorId = env->GetIntField(navObj, nFloorIdFid);
+            np.kind = env->GetIntField(navObj, nKindFid);
+            np.connectorId = env->GetIntField(navObj, nConnectorIdFid);
+            np.toFloorId = env->GetIntField(navObj, nToFloorIdFid);
             jobject nRoomIdsList = env->GetObjectField(navObj, nRoomIdsFid);
             np.roomIds = toIntVector(env, nRoomIdsList);
             navPoints.push_back(np);
@@ -356,6 +378,7 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
 
         jclass roomCls = env->FindClass("com/rvo/rvoserver/nativebridge/NativeSimulationInput$NativeRoom");
         jfieldID rRidFid = env->GetFieldID(roomCls, "rid", "I");
+        jfieldID rFloorIdFid = env->GetFieldID(roomCls, "floorId", "I");
         jfieldID rPeopleCountFid = env->GetFieldID(roomCls, "peopleCount", "I");
         jfieldID rWallsFid = env->GetFieldID(roomCls, "walls", "Ljava/util/List;");
 
@@ -368,6 +391,7 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
             if (roomObj == nullptr) continue;
             rvocpp::RoomC r{};
             r.rid = env->GetIntField(roomObj, rRidFid);
+            r.floorId = env->GetIntField(roomObj, rFloorIdFid);
             r.peopleCount = env->GetIntField(roomObj, rPeopleCountFid);
 
             jobject wallsListObj = env->GetObjectField(roomObj, rWallsFid);
@@ -396,6 +420,7 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
 
         jclass groupCls = env->FindClass("com/rvo/rvoserver/nativebridge/NativeSimulationInput$NativePeopleGroup");
         jfieldID gIdFid = env->GetFieldID(groupCls, "id", "I");
+        jfieldID gFloorIdFid = env->GetFieldID(groupCls, "floorId", "I");
         jfieldID gPeopleCountFid = env->GetFieldID(groupCls, "peopleCount", "I");
         jfieldID gWallsFid = env->GetFieldID(groupCls, "walls", "Ljava/util/List;");
 
@@ -404,6 +429,7 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
             if (groupObj == nullptr) continue;
             rvocpp::PeopleGroupC g{};
             g.id = env->GetIntField(groupObj, gIdFid);
+            g.floorId = env->GetIntField(groupObj, gFloorIdFid);
             g.peopleCount = env->GetIntField(groupObj, gPeopleCountFid);
 
             jobject wallsListObj = env->GetObjectField(groupObj, gWallsFid);
@@ -423,8 +449,45 @@ Java_com_rvo_rvoserver_nativebridge_NativeRvoBridge_nativeLoadFromData(JNIEnv* e
             env->DeleteLocalRef(groupObj);
         }
 
+        // connectors list
+        jfieldID connectorsFid = env->GetFieldID(inputCls, "connectors", "Ljava/util/List;");
+        jobject connectorsListObj = env->GetObjectField(inputObj, connectorsFid);
+        std::vector<rvocpp::Connector> connectors;
+        int connectorCount = getListSize(env, connectorsListObj);
+        connectors.reserve(connectorCount);
+
+        jclass connectorCls = env->FindClass("com/rvo/rvoserver/nativebridge/NativeSimulationInput$NativeConnector");
+        jfieldID cIdFid = env->GetFieldID(connectorCls, "id", "I");
+        jfieldID cTypeFid = env->GetFieldID(connectorCls, "type", "I");
+        jfieldID cFromFloorFid = env->GetFieldID(connectorCls, "fromFloor", "I");
+        jfieldID cToFloorFid = env->GetFieldID(connectorCls, "toFloor", "I");
+        jfieldID cEntryXFid = env->GetFieldID(connectorCls, "entryX", "D");
+        jfieldID cEntryYFid = env->GetFieldID(connectorCls, "entryY", "D");
+        jfieldID cExitXFid = env->GetFieldID(connectorCls, "exitX", "D");
+        jfieldID cExitYFid = env->GetFieldID(connectorCls, "exitY", "D");
+        jfieldID cCapacityFid = env->GetFieldID(connectorCls, "capacity", "I");
+        jfieldID cServiceTimeFid = env->GetFieldID(connectorCls, "serviceTime", "D");
+
+        for (int i = 0; i < connectorCount; ++i) {
+            jobject connectorObj = getListElement(env, connectorsListObj, i);
+            if (connectorObj == nullptr) continue;
+            rvocpp::Connector c{};
+            c.id = env->GetIntField(connectorObj, cIdFid);
+            c.type = env->GetIntField(connectorObj, cTypeFid);
+            c.fromFloor = env->GetIntField(connectorObj, cFromFloorFid);
+            c.toFloor = env->GetIntField(connectorObj, cToFloorFid);
+            c.entryX = env->GetDoubleField(connectorObj, cEntryXFid);
+            c.entryY = env->GetDoubleField(connectorObj, cEntryYFid);
+            c.exitX = env->GetDoubleField(connectorObj, cExitXFid);
+            c.exitY = env->GetDoubleField(connectorObj, cExitYFid);
+            c.capacity = env->GetIntField(connectorObj, cCapacityFid);
+            c.serviceTime = env->GetDoubleField(connectorObj, cServiceTimeFid);
+            connectors.push_back(c);
+            env->DeleteLocalRef(connectorObj);
+        }
+
         bool ok = simulator->loadFromData(cfg, std::move(agents), std::move(obstacles),
-                                          std::move(exits), std::move(navPoints),
+                                          std::move(exits), std::move(navPoints), std::move(connectors),
                                           std::move(rooms), std::move(peopleGroups));
         return ok ? JNI_TRUE : JNI_FALSE;
     } catch (...) {
