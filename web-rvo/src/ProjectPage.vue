@@ -43,7 +43,8 @@
               模拟执行<i class="el-icon-arrow-down el-icon--right"></i>
             </el-button>
             <el-dropdown-menu slot="dropdown">
-              <el-dropdown-item @click.native="dialogVisible_attr_4=true" :disabled="TID==11||TID==19||TID==10">出口选择参数设置</el-dropdown-item>
+              <el-dropdown-item @click.native="dialogVisible_attr_4=true" :disabled="TID==11||TID==19||TID==10">出口参数设置</el-dropdown-item>
+              <el-dropdown-item @click.native="initShow_18()" :disabled="TID==11||TID==19||TID==10">出口方案选择</el-dropdown-item>
               <el-dropdown-item @click.native="check()" :disabled="TID==11||TID==19||TID==10">参数检验</el-dropdown-item>
               <el-dropdown-item :disabled="!isValid || TID==11||TID==19||TID==10" @click.native="upload(),this.isOk = true,percentage=0">方案模拟</el-dropdown-item>
             </el-dropdown-menu>
@@ -385,7 +386,7 @@
     </div>
     <div v-if="dialogVisible_attr_4">
       <el-dialog
-      title="出口选择参数设置"
+      title="出口参数设置"
       :visible.sync="dialogVisible_attr_4"
       width="50%"
       :append-to-body="true"

@@ -221,7 +221,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
         threeViewer: null,
         view3D:{
           enabled:false,
-          floorHeight:3,
+          floorHeight:6,
           floorFilter:'all',
           onlyCurrentFloor:false
         },

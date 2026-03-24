@@ -185,45 +185,54 @@ export class ThreeFloorViewer {
       metalness: 0.05,
       roughness: 0.75,
       transparent: false,
-      opacity: 1
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1
     });
-    const wallEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x0b1220, transparent: true, opacity: 0.7 });
+    const wallEdgeMaterial = new THREE.LineBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.98 });
     const exitMaterial = new THREE.MeshStandardMaterial({ color: 0x22c55e });
     const connectorMaterial = new THREE.MeshStandardMaterial({ color: 0xf59e0b });
 
     rooms.forEach((room) => {
       const rawWalls = Array.isArray(room.walls) ? room.walls : [];
-      const walls = this.normalizeWallPoints(rawWalls);
-      if (walls.length < 2) return;
+      if (rawWalls.length < 2) return;
       const floorId = Number(room.floorId || 0);
       const y = floorId * this.floorHeight;
-      for (let i = 0; i < walls.length; i++) {
-        const a = walls[i];
-        const b = walls[(i + 1) % walls.length];
+      for (let i = 1; i < rawWalls.length; i++) {
+        const a = rawWalls[i - 1];
+        const b = rawWalls[i];
         if (!a || !b) continue;
-        const ax = a.x;
-        const az = a.z;
-        const bx = b.x;
-        const bz = b.z;
+        const ax = Number(a.x);
+        const az = Number(a.y);
+        const bx = Number(b.x);
+        const bz = Number(b.y);
+        if (!Number.isFinite(ax) || !Number.isFinite(az) || !Number.isFinite(bx) || !Number.isFinite(bz)) continue;
+        if (ax === -10000 || az === -10000 || bx === -10000 || bz === -10000) continue;
         const dx = bx - ax;
         const dz = bz - az;
         const len = Math.sqrt(dx * dx + dz * dz);
         if (len <= 1e-6) continue;
+
         const wallMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(len, this.wallHeight, this.wallThickness),
+          new THREE.PlaneGeometry(len, this.wallHeight),
           wallMaterial.clone()
         );
         wallMesh.position.set((ax + bx) / 2, y + this.wallHeight / 2, (az + bz) / 2);
-        wallMesh.rotation.y = Math.atan2(dz, dx);
+        wallMesh.rotation.y = Math.atan2(-dz, dx);
 
-        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(wallMesh.geometry), wallEdgeMaterial.clone());
-        edges.position.copy(wallMesh.position);
-        edges.rotation.copy(wallMesh.rotation);
+        const edgeLine = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(ax, y + this.wallHeight + 0.01, az),
+            new THREE.Vector3(bx, y + this.wallHeight + 0.01, bz)
+          ]),
+          wallEdgeMaterial.clone()
+        );
 
         wallMesh.userData.floorId = floorId;
-        edges.userData.floorId = floorId;
+        edgeLine.userData.floorId = floorId;
         this.buildingGroup.add(wallMesh);
-        this.buildingGroup.add(edges);
+        this.buildingGroup.add(edgeLine);
       }
 
       if (this.showFloorPlates) {
@@ -283,6 +292,7 @@ export class ThreeFloorViewer {
 
   applyFloorFilterToScene() {
     const focusFloor = this.floorFilter;
+    const focusFloorNum = focusFloor == null ? null : Number(focusFloor);
     const hideOthers = this.onlyCurrentFloor;
     const visibleOpacity = 1;
     const dimOpacity = 0.25;
@@ -311,27 +321,41 @@ export class ThreeFloorViewer {
     if (this.buildingGroup) {
       this.buildingGroup.traverse((child) => {
         if (!child.userData && !child.geometry) return;
-        const fid = child.userData.floorId;
-        const fids = child.userData.floorIds;
-        
-        if (focusFloor == null) {
+        const fid = Number(child.userData.floorId);
+        const fidsRaw = child.userData.floorIds;
+        const fids = Array.isArray(fidsRaw) ? fidsRaw.map((v) => Number(v)).filter((v) => Number.isFinite(v)) : null;
+        const isMultiFloor = Array.isArray(fids) && fids.length > 1;
+        const hasFloorId = Number.isFinite(fid);
+        const hasFloorIds = Array.isArray(fids) && fids.length > 0;
+
+        if (!hasFloorId && !hasFloorIds) {
+          setVisibility(child, true, visibleOpacity);
+          return;
+        }
+
+        if (focusFloorNum == null) {
           setVisibility(child, true, visibleOpacity);
           return;
         }
         
-        const onFocusFloor = fid === focusFloor || (fids && fids.indexOf(focusFloor) !== -1);
+        const onFocusFloor = (hasFloorId && fid === focusFloorNum) || (fids && fids.indexOf(focusFloorNum) !== -1 && (!hideOthers || !isMultiFloor));
         setVisibility(child, onFocusFloor, onFocusFloor ? visibleOpacity : dimOpacity);
       });
     }
 
     if (this.agentGroup) {
       this.agentGroup.traverse((child) => {
-        const fid = child.userData.floorId;
-        if (focusFloor == null) {
+        const fid = Number(child.userData.floorId);
+        const hasFloorId = Number.isFinite(fid);
+        if (!hasFloorId) {
           setVisibility(child, true, visibleOpacity);
           return;
         }
-        const onFocusFloor = fid === focusFloor;
+        if (focusFloorNum == null) {
+          setVisibility(child, true, visibleOpacity);
+          return;
+        }
+        const onFocusFloor = fid === focusFloorNum;
         setVisibility(child, onFocusFloor, onFocusFloor ? visibleOpacity : dimOpacity);
       });
     }
@@ -373,51 +397,58 @@ export class ThreeFloorViewer {
   createFloorPlate(walls, y) {
     const pts = this.normalizeWallPoints(walls);
     if (pts.length < 3) return null;
-    const shape = new THREE.Shape();
-    let started = false;
-    pts.forEach((point, index) => {
-      if (!point) return;
-      const x = Number(point.x || 0);
-      const z = Number(point.z || 0);
-      if (!started || index === 0) {
-        shape.moveTo(x, z);
-        started = true;
-      } else {
-        shape.lineTo(x, z);
-      }
-    });
-    if (!started) return null;
+    const shapePts = pts.map((p) => new THREE.Vector2(Number(p.x || 0), Number(p.z || 0)));
+    if (THREE.ShapeUtils.isClockWise(shapePts)) {
+      shapePts.reverse();
+    }
+    const shape = new THREE.Shape(shapePts);
     const geometry = new THREE.ShapeGeometry(shape);
-    const material = new THREE.MeshStandardMaterial({ color: 0x1e293b, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.FrontSide,
+      depthWrite: false
+    });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.y = y;
+    mesh.position.y = y + 0.005;
     return mesh;
   }
 
   normalizeWallPoints(rawWalls) {
-    const pts = [];
-    const isValidNum = (v) => typeof v === 'number' && Number.isFinite(v);
-    const pushIfValid = (x, z) => {
-      if (!isValidNum(x) || !isValidNum(z)) return;
-      if (x === -10000 || z === -10000) return;
-      const last = pts[pts.length - 1];
-      if (last && Math.abs(last.x - x) < 1e-6 && Math.abs(last.z - z) < 1e-6) return;
-      pts.push({ x, z });
+    const segments = [];
+    let current = [];
+    const pushCurrent = () => {
+      if (current.length >= 3) segments.push(current);
+      current = [];
     };
 
     (Array.isArray(rawWalls) ? rawWalls : []).forEach((p) => {
       if (!p) return;
       const x = Number(p.x);
       const z = Number(p.y);
-      pushIfValid(x, z);
+      if (!Number.isFinite(x) || !Number.isFinite(z) || x === -10000 || z === -10000) {
+        pushCurrent();
+        return;
+      }
+      const last = current[current.length - 1];
+      if (last && Math.abs(last.x - x) < 1e-6 && Math.abs(last.z - z) < 1e-6) return;
+      current.push({ x, z });
     });
+    pushCurrent();
+
+    if (segments.length === 0) return [];
+    let pts = segments[0];
+    for (let i = 1; i < segments.length; i++) {
+      if (segments[i].length > pts.length) pts = segments[i];
+    }
 
     if (pts.length >= 2) {
       const first = pts[0];
       const last = pts[pts.length - 1];
-      if (first && last && Math.abs(first.x - last.x) < 1e-6 && Math.abs(first.z - last.z) < 1e-6) {
-        pts.pop();
+      if (Math.abs(first.x - last.x) < 1e-6 && Math.abs(first.z - last.z) < 1e-6) {
+        pts = pts.slice(0, pts.length - 1);
       }
     }
 
