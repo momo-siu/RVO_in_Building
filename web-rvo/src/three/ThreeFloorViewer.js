@@ -3,9 +3,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 export class ThreeFloorViewer {
   constructor(options = {}) {
-    this.floorHeight = options.floorHeight || 3;
-    this.wallHeight = options.wallHeight || 3;
-    this.wallThickness = options.wallThickness || 0.25;
+    this.floorHeight = options.floorHeight || 120;
+    this.wallHeight = options.wallHeight || 30;
+    this.wallThickness = options.wallThickness || 2;
     this.showFloorPlates = !!options.showFloorPlates;
     this.scene = null;
     this.camera = null;
