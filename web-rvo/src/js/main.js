@@ -221,7 +221,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
         threeViewer: null,
         view3D:{
           enabled:false,
-          floorHeight:100,
+          floorHeight:150,
           floorFilter:'all',
           onlyCurrentFloor:false
         },
@@ -4810,19 +4810,20 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           this.dialogVisible_2 = true;
         },
         buildAnimationPlanOptions(){
-          const options = [
-            { label:'系统推荐：时间优先', value:'1', isCustom:false },
-            { label:'系统推荐：剂量优先', value:'2', isCustom:false },
-            { label:'系统推荐：个人剂量最小', value:'3', isCustom:false }
-          ];
           const baseList = this.selectMethodDetail.length ? this.selectMethodDetail : this.selectMethodALLResult;
-          baseList.forEach(item=>{
+          const options = [];
+          baseList.forEach((item, idx) => {
             if(!item || !item.method){ return; }
-            const label = `方案 ${item.method} （出口${item.number || '-'}个）`;
+            const methodStr = String(item.method || '').trim();
+            const exitIds = methodStr
+              ? methodStr.split(',').map(s => s.trim()).filter(Boolean)
+              : [];
+            const exitIdsText = exitIds.join(',');
+            const label = `方案${idx + 1}（${exitIdsText}）`;
             options.push({
               label,
-              value:item.method,
-              isCustom:true
+              value: methodStr,
+              isCustom: true
             });
           });
           return options;
@@ -4833,49 +4834,27 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
             return;
           }
           const selected = this.animationSetting.plans.find(item => item.value === this.animationSetting.plan);
-          let playbackFile = selected ? selected.value : '1';
-          if(selected && selected.isCustom){
-            try{
-              await this.prepareCustomPlaybackPlan(playbackFile);
-              playbackFile = '1';
-            }catch(e){
-              this.$notify.error({
-                title:'错误',
-                message:e && e.message ? e.message : '方案准备失败',
-                offset:100,
-                duration:0
-              });
-              return;
-            }
+          const playbackMethod = selected ? selected.value : this.animationSetting.plan;
+          try{
+            await this.prepareCustomPlaybackPlan(playbackMethod);
+          }catch(e){
+            this.$notify.error({
+              title:'错误',
+              message:e && e.message ? e.message : '方案准备失败',
+              offset:100,
+              duration:0
+            });
+            return;
           }
           if(this.animationSetting.color){
             this.drawConfig[9].color = this.animationSetting.color;
             this.drawConfig[10].color = this.animationSetting.color;
           }
-          // 从选中的方案推断scheme和status
-          let scheme = 'time';
-          let status = 1;
-          if(selected && !selected.isCustom){
-            // 系统推荐方案：根据value判断
-            if(selected.value === '2'){
-              scheme = 'dose';
-              status = 2;
-            } else if(selected.value === '3'){
-              scheme = 'personal';
-              status = 3;
-            } else {
-              scheme = 'time';
-              status = 1;
-            }
-          } else {
-            // 自定义方案：默认使用时间优先
-            scheme = 'time';
-            status = 1;
-          }
           this.playbackConfig = {
-            scheme,
-            file: playbackFile,
-            status
+            // 只保留“时间优先”的动画播放
+            scheme: 'time',
+            file: '1',
+            status: 1
           };
           this.animationState = 'paused';
           this.TID = 11;
@@ -4902,9 +4881,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
             status: config.status || 1
           };
           const map = {
-            time:'playBack',
-            dose:'playBack_1',
-            personal:'playBack_2'
+            time:'playBack'
           };
           const handler = map[scheme] || 'playBack';
           // 根据当前倍速调整帧间隔
@@ -9256,266 +9233,266 @@ if(this.TID==31||this.TID==29){
         });
     },
     //回放功能
-    playBack_1(options = {}){
-      const fileParam = options.file || '2';
-      const statusParam = options.status || 2;
-      this.viewInfo.isViewHeat=false;
-      // alert(this.radio_mode)
+//     playBack_1(options = {}){
+//       const fileParam = options.file || '2';
+//       const statusParam = options.status || 2;
+//       this.viewInfo.isViewHeat=false;
+//       // alert(this.radio_mode)
       
-      this.heatInit();
+//       this.heatInit();
 
-      if(this.radio_mode=='在线模式'){
-        this.status = statusParam;
-        this.initWebSocket(fileParam);
-      }
+//       if(this.radio_mode=='在线模式'){
+//         this.status = statusParam;
+//         this.initWebSocket(fileParam);
+//       }
 
-      const loading = this.$loading({
-          lock: true,
-          text: '正在加载播放所需数据...',
-          spinner: 'el-icon-loading',
-          background: 'rgba(0, 0, 0, 0.7)'
-      });
+//       const loading = this.$loading({
+//           lock: true,
+//           text: '正在加载播放所需数据...',
+//           spinner: 'el-icon-loading',
+//           background: 'rgba(0, 0, 0, 0.7)'
+//       });
 
-      var url = restweburl + 'getReplayData';
-      axios({
-        url: url,
-        method: "post",
-        data:{
-          bID:this.$route.params.bID,
-          file:fileParam,
-          status:statusParam
-        }
-      })
-      .then((res) => {
-        if(res.data.msg=="success"){
-          this.show.clips=res.data.data.flat;
-          this.show.totalTime=this.show.clips[this.show.clips.length-1].startTime+this.show.clips[this.show.clips.length-1].duration-1
+//       var url = restweburl + 'getReplayData';
+//       axios({
+//         url: url,
+//         method: "post",
+//         data:{
+//           bID:this.$route.params.bID,
+//           file:fileParam,
+//           status:statusParam
+//         }
+//       })
+//       .then((res) => {
+//         if(res.data.msg=="success"){
+//           this.show.clips=res.data.data.flat;
+//           this.show.totalTime=this.show.clips[this.show.clips.length-1].startTime+this.show.clips[this.show.clips.length-1].duration-1
           
-          //备份当前数据
-          this.backup.peos=JSON.parse(JSON.stringify(this.peos));
-          this.backup.rooms=JSON.parse(JSON.stringify(this.rooms));
-          this.backup.exits=JSON.parse(JSON.stringify(this.exits));
-          this.backup.connectors=JSON.parse(JSON.stringify(this.connectors));
-          this.backup.pointsNav=JSON.parse(JSON.stringify(this.pointsNav));
-          this.backup.pointsNavView=JSON.parse(JSON.stringify(this.pointsNavView));
-          this.backup.viewInfo=JSON.parse(JSON.stringify(this.viewInfo)); 
-          this.show.nowBusy=0;
-          this.backup.show=JSON.parse(JSON.stringify(this.show)); 
-          this.backup.nST=JSON.parse(JSON.stringify(this.nST)); 
-          this.backup.bST=JSON.parse(JSON.stringify(this.bST)); 
-          this.backup.ks = JSON.parse(JSON.stringify(this.ks));
-          this.show.nowBusy=0;
+//           //备份当前数据
+//           this.backup.peos=JSON.parse(JSON.stringify(this.peos));
+//           this.backup.rooms=JSON.parse(JSON.stringify(this.rooms));
+//           this.backup.exits=JSON.parse(JSON.stringify(this.exits));
+//           this.backup.connectors=JSON.parse(JSON.stringify(this.connectors));
+//           this.backup.pointsNav=JSON.parse(JSON.stringify(this.pointsNav));
+//           this.backup.pointsNavView=JSON.parse(JSON.stringify(this.pointsNavView));
+//           this.backup.viewInfo=JSON.parse(JSON.stringify(this.viewInfo)); 
+//           this.show.nowBusy=0;
+//           this.backup.show=JSON.parse(JSON.stringify(this.show)); 
+//           this.backup.nST=JSON.parse(JSON.stringify(this.nST)); 
+//           this.backup.bST=JSON.parse(JSON.stringify(this.bST)); 
+//           this.backup.ks = JSON.parse(JSON.stringify(this.ks));
+//           this.show.nowBusy=0;
 
-          //重绘所有内容(播放内容)
-          this.peos = this.back_poes(res.data.data.frame.peos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
-          this.rooms = this.back_rooms(res.data.data.frame.rooms,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
-          this.exits = this.back_exit(res.data.data.frame.exit,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
-          this.pointsNav = this.back_navs(res.data.data.frame.navPos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
-          this.connectors = this.back_connectors(res.data.data.frame.connectors, res.data.data.frame.viewInfo.imgX0, res.data.data.frame.viewInfo.imgY0, res.data.data.frame.nST.sT);
-          //this.viewInfo = res.data.data.frame.viewInfo;
-          this.nST = res.data.data.frame.nST;
-          this.draw();
-          if (this.view3D.enabled) {
-            this.syncThreeSceneData();
-          }
+//           //重绘所有内容(播放内容)
+//           this.peos = this.back_poes(res.data.data.frame.peos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+//           this.rooms = this.back_rooms(res.data.data.frame.rooms,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+//           this.exits = this.back_exit(res.data.data.frame.exit,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+//           this.pointsNav = this.back_navs(res.data.data.frame.navPos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+//           this.connectors = this.back_connectors(res.data.data.frame.connectors, res.data.data.frame.viewInfo.imgX0, res.data.data.frame.viewInfo.imgY0, res.data.data.frame.nST.sT);
+//           //this.viewInfo = res.data.data.frame.viewInfo;
+//           this.nST = res.data.data.frame.nST;
+//           this.draw();
+//           if (this.view3D.enabled) {
+//             this.syncThreeSceneData();
+//           }
 
-          //热力图加载
-          url = restweburl + 'getHeatMap';
-          axios({
-            url: url,
-            method: "post",
-            data:{
-              bID:this.$route.params.bID
-            }
-          })
-          .then((res) => {
-            this.data = res.data.data;
-            //本地加载
-            if(this.radio_mode=='本地模式'){
-              let file = document.getElementById('fileInput').files[0];
-              if (!file) {
-                return;
-              }
+//           //热力图加载
+//           url = restweburl + 'getHeatMap';
+//           axios({
+//             url: url,
+//             method: "post",
+//             data:{
+//               bID:this.$route.params.bID
+//             }
+//           })
+//           .then((res) => {
+//             this.data = res.data.data;
+//             //本地加载
+//             if(this.radio_mode=='本地模式'){
+//               let file = document.getElementById('fileInput').files[0];
+//               if (!file) {
+//                 return;
+//               }
             
-              let reader = new FileReader();
-              reader.readAsText(file, 'utf-8');
-              reader.onload = ((e) => {
-                this.dat = e.target.result;
+//               let reader = new FileReader();
+//               reader.readAsText(file, 'utf-8');
+//               reader.onload = ((e) => {
+//                 this.dat = e.target.result;
 
-                function runtimeLiteralParseHelper(d) {
-                  return eval(d);
-                }
-                this.d5 = runtimeLiteralParseHelper(e.target.result);  
-              });
-            }
-            setTimeout(() => {  
-              loading.close();
-          }, 1000);
-          })
-          .catch((error)=> {
-            loading.close();
-            this.$notify.error({
-              title: '错误',
-              message: error,
-              offset: 100,
-              duration:0,
-            });
-          });
-        }
-        else{
-          loading.close();
-          this.$notify.error({
-            title: '错误',
-            message: "当前项目还未模拟执行，无可播放动画",
-            offset: 100
-          });
-          this.TID=0;
-        }
-      })
-      .catch((error)=> {
-        loading.close();
-        console.log(error);
-        this.$notify.error({
-          title: '错误',
-          message: error,
-          offset: 100,
-          duration:0,
-      });
-      });
-  },
-  //回放功能
-  playBack_2(options = {}){
-    const fileParam = options.file || '3';
-    const statusParam = options.status || 3;
-    this.viewInfo.isViewHeat=false;
-    // alert(this.radio_mode)
+//                 function runtimeLiteralParseHelper(d) {
+//                   return eval(d);
+//                 }
+//                 this.d5 = runtimeLiteralParseHelper(e.target.result);  
+//               });
+//             }
+//             setTimeout(() => {  
+//               loading.close();
+//           }, 1000);
+//           })
+//           .catch((error)=> {
+//             loading.close();
+//             this.$notify.error({
+//               title: '错误',
+//               message: error,
+//               offset: 100,
+//               duration:0,
+//             });
+//           });
+//         }
+//         else{
+//           loading.close();
+//           this.$notify.error({
+//             title: '错误',
+//             message: "当前项目还未模拟执行，无可播放动画",
+//             offset: 100
+//           });
+//           this.TID=0;
+//         }
+//       })
+//       .catch((error)=> {
+//         loading.close();
+//         console.log(error);
+//         this.$notify.error({
+//           title: '错误',
+//           message: error,
+//           offset: 100,
+//           duration:0,
+//       });
+//       });
+//   },
+//   //回放功能
+//   playBack_2(options = {}){
+//     const fileParam = options.file || '3';
+//     const statusParam = options.status || 3;
+//     this.viewInfo.isViewHeat=false;
+//     // alert(this.radio_mode)
     
-    this.heatInit();
+//     this.heatInit();
 
-    if(this.radio_mode=='在线模式'){
-      this.status = statusParam;
-      this.initWebSocket(fileParam);
-    }
+//     if(this.radio_mode=='在线模式'){
+//       this.status = statusParam;
+//       this.initWebSocket(fileParam);
+//     }
 
-    const loading = this.$loading({
-        lock: true,
-        text: '正在加载播放所需数据...',
-        spinner: 'el-icon-loading',
-        background: 'rgba(0, 0, 0, 0.7)'
-    });
+//     const loading = this.$loading({
+//         lock: true,
+//         text: '正在加载播放所需数据...',
+//         spinner: 'el-icon-loading',
+//         background: 'rgba(0, 0, 0, 0.7)'
+//     });
 
-    var url = restweburl + 'getReplayData';
-    axios({
-      url: url,
-      method: "post",
-      data:{
-        bID:this.$route.params.bID,
-        file:fileParam,
-        status:statusParam
-      }
-    })
-    .then((res) => {
-      if(res.data.msg=="success"){
-        this.show.clips=res.data.data.flat;
-        this.show.totalTime=this.show.clips[this.show.clips.length-1].startTime+this.show.clips[this.show.clips.length-1].duration-1
+//     var url = restweburl + 'getReplayData';
+//     axios({
+//       url: url,
+//       method: "post",
+//       data:{
+//         bID:this.$route.params.bID,
+//         file:fileParam,
+//         status:statusParam
+//       }
+//     })
+//     .then((res) => {
+//       if(res.data.msg=="success"){
+//         this.show.clips=res.data.data.flat;
+//         this.show.totalTime=this.show.clips[this.show.clips.length-1].startTime+this.show.clips[this.show.clips.length-1].duration-1
         
-        //备份当前数据
-        this.backup.peos = JSON.parse(JSON.stringify(this.peos));
-        this.backup.rooms=JSON.parse(JSON.stringify(this.rooms));
-        this.backup.exits=JSON.parse(JSON.stringify(this.exits));
-        this.backup.connectors=JSON.parse(JSON.stringify(this.connectors));
-        this.backup.pointsNav=JSON.parse(JSON.stringify(this.pointsNav));
-        this.backup.pointsNavView=JSON.parse(JSON.stringify(this.pointsNavView));
-        this.backup.viewInfo=JSON.parse(JSON.stringify(this.viewInfo)); 
-        this.show.nowBusy=0;
-        this.backup.show=JSON.parse(JSON.stringify(this.show)); 
-        this.backup.nST=JSON.parse(JSON.stringify(this.nST)); 
-        this.backup.bST=JSON.parse(JSON.stringify(this.bST)); 
-        this.show.nowBusy=0;
+//         //备份当前数据
+//         this.backup.peos = JSON.parse(JSON.stringify(this.peos));
+//         this.backup.rooms=JSON.parse(JSON.stringify(this.rooms));
+//         this.backup.exits=JSON.parse(JSON.stringify(this.exits));
+//         this.backup.connectors=JSON.parse(JSON.stringify(this.connectors));
+//         this.backup.pointsNav=JSON.parse(JSON.stringify(this.pointsNav));
+//         this.backup.pointsNavView=JSON.parse(JSON.stringify(this.pointsNavView));
+//         this.backup.viewInfo=JSON.parse(JSON.stringify(this.viewInfo)); 
+//         this.show.nowBusy=0;
+//         this.backup.show=JSON.parse(JSON.stringify(this.show)); 
+//         this.backup.nST=JSON.parse(JSON.stringify(this.nST)); 
+//         this.backup.bST=JSON.parse(JSON.stringify(this.bST)); 
+//         this.show.nowBusy=0;
 
-        //重绘所有内容(播放内容)
-        this.peos = this.back_poes(res.data.data.frame.peos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
-        this.rooms = this.back_rooms(res.data.data.frame.rooms,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
-        this.exits = this.back_exit(res.data.data.frame.exit,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
-        this.pointsNav = this.back_navs(res.data.data.frame.navPos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
-        this.connectors = this.back_connectors(res.data.data.frame.connectors, res.data.data.frame.viewInfo.imgX0, res.data.data.frame.viewInfo.imgY0, res.data.data.frame.nST.sT);
-        // this.viewInfo.X1 = (this.viewInfo.X1-this.viewInfo.X0)*this.nST.sT;
-        // this.viewInfo.Y1 = (this.viewInfo.Y1-this.viewInfo.Y0)*this.nST.sT;
-        // this.viewInfo.X0 = 0;
-        // this.viewInfo.Y0 = 0;
-        // this.viewInfo.scale=1;
-        // this.viewInfo.sT=1;
-        //this.viewInfo = res.data.data.frame.viewInfo;
-        this.nST = res.data.data.frame.nST;
-        this.draw();
-        if (this.view3D.enabled) {
-          this.syncThreeSceneData();
-        }
+//         //重绘所有内容(播放内容)
+//         this.peos = this.back_poes(res.data.data.frame.peos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+//         this.rooms = this.back_rooms(res.data.data.frame.rooms,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+//         this.exits = this.back_exit(res.data.data.frame.exit,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+//         this.pointsNav = this.back_navs(res.data.data.frame.navPos,res.data.data.frame.viewInfo.imgX0,res.data.data.frame.viewInfo.imgY0,res.data.data.frame.nST.sT);
+//         this.connectors = this.back_connectors(res.data.data.frame.connectors, res.data.data.frame.viewInfo.imgX0, res.data.data.frame.viewInfo.imgY0, res.data.data.frame.nST.sT);
+//         // this.viewInfo.X1 = (this.viewInfo.X1-this.viewInfo.X0)*this.nST.sT;
+//         // this.viewInfo.Y1 = (this.viewInfo.Y1-this.viewInfo.Y0)*this.nST.sT;
+//         // this.viewInfo.X0 = 0;
+//         // this.viewInfo.Y0 = 0;
+//         // this.viewInfo.scale=1;
+//         // this.viewInfo.sT=1;
+//         //this.viewInfo = res.data.data.frame.viewInfo;
+//         this.nST = res.data.data.frame.nST;
+//         this.draw();
+//         if (this.view3D.enabled) {
+//           this.syncThreeSceneData();
+//         }
 
-        //热力图加载
-        url = restweburl + 'getHeatMap';
-        axios({
-          url: url,
-          method: "post",
-          data:{
-            bID:this.$route.params.bID
-          }
-        })
-        .then((res) => {
-          this.data = res.data.data;
-          //本地加载
-          if(this.radio_mode=='本地模式'){
-            let file = document.getElementById('fileInput').files[0];
-            if (!file) {
-              return;
-            }
+//         //热力图加载
+//         url = restweburl + 'getHeatMap';
+//         axios({
+//           url: url,
+//           method: "post",
+//           data:{
+//             bID:this.$route.params.bID
+//           }
+//         })
+//         .then((res) => {
+//           this.data = res.data.data;
+//           //本地加载
+//           if(this.radio_mode=='本地模式'){
+//             let file = document.getElementById('fileInput').files[0];
+//             if (!file) {
+//               return;
+//             }
           
-            let reader = new FileReader();
-            reader.readAsText(file, 'utf-8');
-            reader.onload = ((e) => {
-              this.dat = e.target.result;
+//             let reader = new FileReader();
+//             reader.readAsText(file, 'utf-8');
+//             reader.onload = ((e) => {
+//               this.dat = e.target.result;
 
-              function runtimeLiteralParseHelper(d) {
-                return eval(d);
-              }
-              this.d5 = runtimeLiteralParseHelper(e.target.result);  
-            });
-          }
-          setTimeout(() => {  
-            loading.close();
-        }, 1000);
-        })
-        .catch((error)=> {
-          loading.close();
-          this.$notify.error({
-            title: '错误',
-            message: error,
-            offset: 100,
-            duration:0,
-          });
-        });
-      }
-      else{
-        loading.close();
-        this.$notify.error({
-          title: '错误',
-          message: "当前项目还未模拟执行，无可播放动画",
-          offset: 100
-        });
-        this.TID=0;
-      }
-    })
-    .catch((error)=> {
-      loading.close();
-      console.log(error);
-      this.$notify.error({
-        title: '错误',
-        message: error,
-        offset: 100,
-        duration:0,
-    });
-    });
-},
+//               function runtimeLiteralParseHelper(d) {
+//                 return eval(d);
+//               }
+//               this.d5 = runtimeLiteralParseHelper(e.target.result);  
+//             });
+//           }
+//           setTimeout(() => {  
+//             loading.close();
+//         }, 1000);
+//         })
+//         .catch((error)=> {
+//           loading.close();
+//           this.$notify.error({
+//             title: '错误',
+//             message: error,
+//             offset: 100,
+//             duration:0,
+//           });
+//         });
+//       }
+//       else{
+//         loading.close();
+//         this.$notify.error({
+//           title: '错误',
+//           message: "当前项目还未模拟执行，无可播放动画",
+//           offset: 100
+//         });
+//         this.TID=0;
+//       }
+//     })
+//     .catch((error)=> {
+//       loading.close();
+//       console.log(error);
+//       this.$notify.error({
+//         title: '错误',
+//         message: error,
+//         offset: 100,
+//         duration:0,
+//     });
+//     });
+// },
     convertBlobToArray(blob) {
       return new Promise((resolve, reject) => {
           const reader = new FileReader();

@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 export class ThreeFloorViewer {
   constructor(options = {}) {
-    this.floorHeight = options.floorHeight || 120;
+    this.floorHeight = options.floorHeight || 150;
     this.wallHeight = options.wallHeight || 30;
     this.wallThickness = options.wallThickness || 2;
     this.showFloorPlates = !!options.showFloorPlates;
@@ -156,12 +156,18 @@ export class ThreeFloorViewer {
     exits.forEach(e => floorIds.add(Number(e.floorId || 0)));
     
     floorIds.forEach(fid => {
-      const groundGeo = new THREE.PlaneGeometry(this.mapWidth, this.mapHeight);
+      // 这里的尺寸可能太小，或者 centerX/centerZ 的计算在只有部分数据时有问题
+      // 增加地面尺寸的缓冲，确保覆盖所有可能的区域
+      const groundWidth = Math.max(this.mapWidth * 2, 500); 
+      const groundHeight = Math.max(this.mapHeight * 2, 500);
+      const groundGeo = new THREE.PlaneGeometry(groundWidth, groundHeight);
       const groundMat = new THREE.MeshStandardMaterial({ 
           color: 0x1e293b, 
           side: THREE.DoubleSide,
           transparent: true,
-          opacity: 0.25
+          opacity: 0.25,
+          // 不写入深度，避免透明底图把后续安全区/结界的深度关系挡住
+          depthWrite: false
       });
       const ground = new THREE.Mesh(groundGeo, groundMat);
       ground.rotation.x = -Math.PI / 2;
@@ -191,7 +197,20 @@ export class ThreeFloorViewer {
       polygonOffsetUnits: 1
     });
     const wallEdgeMaterial = new THREE.LineBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.98 });
-    const exitMaterial = new THREE.MeshStandardMaterial({ color: 0x22c55e });
+    
+    // 集合点（安全区）材质 - 浅绿色
+    const exitGroundMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x86efac, 
+      transparent: true, 
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      depthTest: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4
+    });
+    
     const connectorMaterial = new THREE.MeshStandardMaterial({ color: 0xf59e0b });
 
     rooms.forEach((room) => {
@@ -244,20 +263,34 @@ export class ThreeFloorViewer {
       }
     });
 
+    // 集合点（安全区）：绿色地面
     exits.forEach((exit) => {
-      const x0 = Number(exit.x0 || 0);
-      const y0 = Number(exit.y0 || 0);
-      const x1 = Number(exit.x1 || 0);
-      const y1 = Number(exit.y1 || 0);
       const floorId = Number(exit.floorId || 0);
-      const centerX = (x0 + x1) / 2;
-      const centerZ = (y0 + y1) / 2;
-      const width = Math.max(Math.abs(x1 - x0), 0.5);
-      const depth = Math.max(Math.abs(y1 - y0), 0.5);
-      const marker = new THREE.Mesh(new THREE.BoxGeometry(width, 0.2, depth), exitMaterial.clone());
-      marker.position.set(centerX, floorId * this.floorHeight + 0.1, centerZ);
-      marker.userData.floorId = floorId;
-      this.buildingGroup.add(marker);
+      // 2D 出口在前端是一个四边形（x0..x3, y0..y3），这里用其包围盒来得到安全区矩形
+      const xs = [exit.x0, exit.x1, exit.x2, exit.x3].map((v) => Number(v)).filter((v) => Number.isFinite(v));
+      const ys = [exit.y0, exit.y1, exit.y2, exit.y3].map((v) => Number(v)).filter((v) => Number.isFinite(v));
+      if (xs.length < 2 || ys.length < 2) return;
+      const minX = Math.min.apply(null, xs);
+      const maxX = Math.max.apply(null, xs);
+      const minZ = Math.min.apply(null, ys);
+      const maxZ = Math.max.apply(null, ys);
+
+      const centerX = (minX + maxX) / 2;
+      const centerZ = (minZ + maxZ) / 2;
+      const width = Math.max(maxX - minX, 0.5);
+      const depth = Math.max(maxZ - minZ, 0.5);
+      const floorY = floorId * this.floorHeight;
+
+      // 绿色地面
+      const groundGeo = new THREE.PlaneGeometry(width, depth);
+      const ground = new THREE.Mesh(groundGeo, exitGroundMaterial.clone());
+      ground.rotation.x = -Math.PI / 2;
+      // 仅抬高一点点避免 z-fighting
+      ground.position.set(centerX, floorY + 0.03, centerZ);
+      ground.userData.floorId = floorId;
+      ground.userData.isExitZone = true;
+      ground.renderOrder = 20;
+      this.buildingGroup.add(ground);
     });
 
     connectors.forEach((connector) => {
