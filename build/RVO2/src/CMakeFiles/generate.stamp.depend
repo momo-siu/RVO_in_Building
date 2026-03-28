@@ -1,0 +1,11 @@
+# CMake generation dependency list for this directory.
+C:/Users/19255/Desktop/dachuang/rvo/cpp-rvo-simulator/RVO2/src/CMakeLists.txt
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/CheckCCompilerFlag.cmake
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/CheckCSourceCompiles.cmake
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/CheckCXXCompilerFlag.cmake
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/CheckCompilerFlag.cmake
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/CheckSourceCompiles.cmake
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/GenerateExportHeader.cmake
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/Internal/CheckCompilerFlag.cmake
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/Internal/CheckSourceCompiles.cmake
+D:/cmake-4.2.0-rc4-windows-x86_64/share/cmake-4.2/Modules/exportheader.cmake.in

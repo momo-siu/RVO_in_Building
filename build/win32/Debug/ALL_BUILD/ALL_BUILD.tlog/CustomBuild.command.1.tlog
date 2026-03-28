@@ -1,0 +1,10 @@
+^C:\USERS\19255\DESKTOP\dachuang\rvo\CPP-RVO-SIMULATOR\CMAKELISTS.TXT
+setlocal
+D:\cmake-4.2.0-rc4-windows-x86_64\bin\cmake.exe -SC:/Users/19255/Desktop/dachuang/rvo/cpp-rvo-simulator -BC:/Users/19255/Desktop/dachuang/build --check-stamp-file C:/Users/19255/Desktop/dachuang/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
