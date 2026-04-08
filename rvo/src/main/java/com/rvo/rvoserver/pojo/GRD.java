@@ -176,40 +176,48 @@ public class GRD {
     }
 
     public double calculate(List<Pos> agents, List<Double> person_grd) {
+        if (value == null || x <= 0 || y <= 0) {
+            if (person_grd != null) {
+                for (int i = 0; i < agents.size(); i++) {
+                    if (person_grd.size() <= i) person_grd.add(0.0); else person_grd.set(i, person_grd.get(i));
+                }
+            }
+            return 0;
+        }
         double res = 0;
         int i = 0;
         for(Pos agent : agents) {
-            //判断人是否在界外
             if(agent.x < x0 || agent.x > x1 || agent.y < y0 || agent.y > y1) {
+                if (person_grd != null) {
+                    if (person_grd.size() <= i) person_grd.add(0.0); else person_grd.set(i, person_grd.get(i));
+                }
+                i++;
                 continue;
             }
-
-            res += value[(int) ((agent.x - x0) / (width / x))][(int) ((agent.y - y0) / (height / y))]/(3600*300*10);
-            if (person_grd.size() <= i){
-                person_grd.add(value[(int) ((agent.x - x0) / (width / x))][(int) ((agent.y - y0) / (height / y))]/(3600*300*10));
-            }else {
-                person_grd.set(i, person_grd.get(i) + value[(int) ((agent.x - x0) / (width / x))][(int) ((agent.y - y0) / (height / y))]/(3600*300*10));
+            double v = value[(int) ((agent.x - x0) / (width / x))][(int) ((agent.y - y0) / (height / y))]/(3600*300*10);
+            res += v;
+            if (person_grd != null) {
+                if (person_grd.size() <= i) person_grd.add(v); else person_grd.set(i, person_grd.get(i) + v);
             }
             i++;
-                    }
+        }
         return res;
     }
 
     public double calculate(List<Pos> agents) {
+        if (value == null || x <= 0 || y <= 0) return 0;
         double res = 0;
         for(Pos agent : agents) {
-            //判断人是否在界外
             if(agent.x < x0 || agent.x > x1 || agent.y < y0 || agent.y > y1) {
                 continue;
             }
             res += value[(int) ((agent.x - x0) / (width / x))][(int) ((agent.y - y0) / (height / y))];
-//            System.out.println((agent.x / (width / x)) + " " + (agent.y / (height / y)));
         }
         return res;
     }
 
     public double calculate(Pos agent) {
-        //判断人是否在界外
+        if (value == null || x <= 0 || y <= 0) return 0;
         if(agent.x < x0 || agent.x > x1 || agent.y < y0 || agent.y > y1) {
             return  0;
         }

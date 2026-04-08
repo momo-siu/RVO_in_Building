@@ -3,6 +3,7 @@ package com.rvo.rvoserver.pojo;
 import com.rvo.rvoserver.server.JavaPythonCaller;
 import com.rvo.rvoserver.server.JsonServer;
 import com.rvo.rvoserver.server.impl.JsonServerA;
+import com.rvo.rvoserver.utils.AssemblyExitId;
 import com.rvo.rvoserver.utils.LineUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -146,12 +147,15 @@ public class NavGrid {
                     }
                 }
             }
-            temp = new Pos((weight_min+weight_max)/2,(high_max+high_min)/2,0,room_id);
-            points.add(temp);
-            roomVertexIndices.add(points.size() - 1);
+                temp = new Pos((weight_min+weight_max)/2,(high_max+high_min)/2,0,room_id);
+                int roomFloorId = rooms.get(i).get("floorId") != null
+                        ? ((Number) rooms.get(i).get("floorId")).intValue() : 0;
+                temp.setFloorId(roomFloorId);
+                points.add(temp);
+                roomVertexIndices.add(points.size() - 1);
         }
-        // 将人口框中心作为点加入到迪杰斯特拉道路
-        for(int i = 0; i < peosList.size(); i++) {
+            // 将人口框中心作为点加入到迪杰斯特拉道路
+            for(int i = 0; i < peosList.size(); i++) {
             List<HashMap> peos = (List<HashMap>) peosList.get(i).get("peos");
             if (peos.size() <= 0){
                 continue;
@@ -199,10 +203,13 @@ public class NavGrid {
                 status = 1;
             }
             temp = new Pos((weight_min+weight_max)/2,(high_max+high_min)/2,status,room_id);
+            int groupFloorId = peosList.get(i).get("floorId") != null
+                    ? ((Number) peosList.get(i).get("floorId")).intValue() : 0;
+            temp.setFloorId(groupFloorId);
             points.add(temp);
             populationVertexIndices.add(points.size() - 1);
         }
-        matrixRoomToExit = new int[rooms.size()+peosList.size()][exits.size()]; // 先房间后人口框
+        matrixRoomToExit = new int[rooms.size()+peosList.size()][exits.size()]; // 先房间后人口框（初始为所有出口，后续为 LP 选取 F1 终点时可按需裁剪）
     }
 
     public NavGrid(int bID, List<Pos> points, List<Obstacle> obstacles, List<Exit> exits,List<HashMap> rooms, List<HashMap> peosList, GRD grd,
@@ -278,6 +285,9 @@ public class NavGrid {
                     }
                 }
                 temp = new Pos((weight_min+weight_max)/2,(high_max+high_min)/2,0,room_id);
+                int roomFloorId2 = rooms.get(i).get("floorId") != null
+                        ? ((Number) rooms.get(i).get("floorId")).intValue() : 0;
+                temp.setFloorId(roomFloorId2);
                 points.add(temp);
                 roomVertexIndices.add(points.size() - 1);
             }
@@ -324,6 +334,9 @@ public class NavGrid {
                         }
                 }
                 temp = new Pos((weight_min+weight_max)/3,(high_max+high_min)/3,0,room_id);
+                int groupFloorId2 = peosList.get(i).get("floorId") != null
+                        ? ((Number) peosList.get(i).get("floorId")).intValue() : 0;
+                temp.setFloorId(groupFloorId2);
                 points.add(temp);
                 populationVertexIndices.add(points.size() - 1);
             }
@@ -430,13 +443,12 @@ public class NavGrid {
             }
         }
 
-        // 限制不能从房间外到房间内
+        //限制不能从房间外到房间内
         for(int i = 0; i < n; i++){
             for(int j = 0; j < n; j++){
                 if(i==j) continue;
                 if(vertex.get(i).state == 1 && vertex.get(j).state == 0){
                     matrix[j][i] = MAXLEN;
-//                    System.out.println(i + "to" + j + "false");
                 }
                 if (vertex.get(i).room_id.size() > 0 && vertex.get(j).room_id.size() > 0 && vertex.get(i).state == 0
                         && vertex.get(j).state == 0 && !vertex.get(i).room_id.stream().anyMatch(vertex.get(j).room_id::contains)){
@@ -450,7 +462,59 @@ public class NavGrid {
                 if (isIntersectWithRoom(vertex.get(i),vertex.get(j),vertex.get(i).room_id)){
                     matrix[j][i] = MAXLEN;
                 }
+            }
+        }
 
+        // 处理楼层间的传送
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (i == j) continue;
+                
+                Pos p1 = vertex.get(i);
+                Pos p2 = vertex.get(j);
+                
+                if (p1.getFloorId() == p2.getFloorId()) {
+                    // 同楼层连通性由 matrix[i][j] 已有的物理距离/障碍物逻辑决定
+                } else {
+                    // 跨楼层：仅允许通过具有 teleportTarget 的集合点传送到目标楼层的同编号集合点
+                    matrix[i][j] = MAXLEN; // 默认不通
+                    
+                    // 检查 i 是否为具有传送目标的集合点
+                    if (p1.room_id.contains(-2) && p2.room_id.contains(-2)) {
+                        // 寻找对应的 Exit 对象
+                        Exit exit1 = null;
+                        for (Exit e : exits) {
+                            if (e.getCenter().equals(p1)) {
+                                exit1 = e;
+                                break;
+                            }
+                        }
+                        
+                        if (exit1 != null) {
+                            AssemblyExitId parsed1 = AssemblyExitId.parse(exit1.getExitKey());
+                            // 必须有传送目标且目标楼层匹配，才能作为跨层传送边
+                            if (parsed1.teleportTarget != null && !parsed1.teleportTarget.isEmpty()) {
+                                int nextF = AssemblyExitId.nextFloorTowardF1(p1.getFloorId());
+                                if (p2.getFloorId() == nextF) {
+                                    // 检查编号是否相同
+                                    Exit exit2 = null;
+                                    for (Exit e : exits) {
+                                        if (e.getCenter().equals(p2)) {
+                                            exit2 = e;
+                                            break;
+                                        }
+                                    }
+                                    if (exit2 != null) {
+                                        AssemblyExitId parsed2 = AssemblyExitId.parse(exit2.getExitKey());
+                                        if (parsed1.assemblyNum == parsed2.assemblyNum) {
+                                            matrix[i][j] = 1; // 传送权重设为极小值
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -499,52 +563,81 @@ public class NavGrid {
         for(int i = 0; i < n; i++){
             for(int j = 0; j < n; j++){
                 if(i==j) continue;
-                if (i ==118&&j==8){
-                    System.out.println();
-                }
                 if(vertex.get(i).state == 1 && vertex.get(j).state == 0){
                     matrix[j][i] = MAXLEN;
-//                    System.out.println(i + "to" + j + "false");
                 }
                 if (vertex.get(i).room_id.size() > 0 && vertex.get(j).room_id.size() > 0 && vertex.get(i).state == 0
-                        && vertex.get(j).state == 0 ){
-                    // 创建交集的临时集合
-                    Set<Integer> intersection = new HashSet<>(vertex.get(i).room_id);
-                    // 计算交集并判断是否为空
-                    intersection.retainAll(vertex.get(j).room_id);
-                    if (intersection.isEmpty()) {
+                        && vertex.get(j).state == 0 && !vertex.get(i).room_id.stream().anyMatch(vertex.get(j).room_id::contains)){
                         matrix[j][i] = MAXLEN;
-                    }
                 }
-//                if (vertex.get(j).room_id.contains(-2)){  // 集合点，需判断是否穿集合点
-//                    if (isIntersectWithRoom(vertex.get(i), vertex.get(j), vertex.get(i).room_id)){  // 穿房间了
-//                        matrix[j][i] = MAXLEN;
-//                    }
-//                }
                 if (isIntersectWithRoom(vertex.get(i),vertex.get(j),vertex.get(i).room_id)){
                     matrix[j][i] = MAXLEN;
                 }
-
             }
         }
 
-        //System.out.println(matrix);
+        // 处理楼层间的传送
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (i == j) continue;
+                
+                Pos p1 = vertex.get(i);
+                Pos p2 = vertex.get(j);
+                
+                if (p1.getFloorId() == p2.getFloorId()) {
+                    // 同楼层连通性由 matrix[i][j] 已有的物理距离/障碍物逻辑决定
+                } else {
+                    // 跨楼层：仅允许通过具有 teleportTarget 的集合点传送到目标楼层的同编号集合点
+                    matrix[i][j] = MAXLEN; // 默认不通
+                    
+                    // 检查 i 是否为具有传送目标的集合点
+                    if (p1.room_id.contains(-2) && p2.room_id.contains(-2)) {
+                        // 寻找对应的 Exit 对象
+                        Exit exit1 = null;
+                        for (Exit e : exits) {
+                            if (e.getCenter().equals(p1)) {
+                                exit1 = e;
+                                break;
+                            }
+                        }
+                        
+                        if (exit1 != null) {
+                            AssemblyExitId parsed1 = AssemblyExitId.parse(exit1.getExitKey());
+                            // 必须有传送目标且目标楼层匹配，才能作为跨层传送边
+                            if (parsed1.teleportTarget != null && !parsed1.teleportTarget.isEmpty()) {
+                                int nextF = AssemblyExitId.nextFloorTowardF1(p1.getFloorId());
+                                if (p2.getFloorId() == nextF) {
+                                    // 检查编号是否相同
+                                    Exit exit2 = null;
+                                    for (Exit e : exits) {
+                                        if (e.getCenter().equals(p2)) {
+                                            exit2 = e;
+                                            break;
+                                        }
+                                    }
+                                    if (exit2 != null) {
+                                        AssemblyExitId parsed2 = AssemblyExitId.parse(exit2.getExitKey());
+                                        if (parsed1.assemblyNum == parsed2.assemblyNum) {
+                                            matrix[i][j] = 1; // 传送权重设为极小值
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     //判断是否有导航点可以到终点
     public boolean isReached() {
-//        for (Pos point : points) {
-//            for (Exit exit : exits) {
-//                for (Obstacle obstacle : obstacles) {
-//                    if (!LineUtils.isIntersect(point, exit.getCenter(), obstacle.getA(), obstacle.getB())) {
-//                        return true;
-//                    } else {
-//                        System.out.println("横坐标为" + point.getX() + "的点与" + obstacle.id + "重合");
-//                    }
-//                }
-//            }
-//        }
         for (Exit exit : exits) {
+            // 只有 F1 层的集合点才是最终疏散终点
+            AssemblyExitId exParsed = AssemblyExitId.parse(exit.getExitKey());
+            if (exParsed.floorInKey != 0) {
+                continue;
+            }
             for (Pos point : points) {
                 boolean is_remove = false;
                 for (int i : remove_rooms){
@@ -775,12 +868,48 @@ public class NavGrid {
 //            }
  //       }
 
-        // 将数据形成json，输入到线性规划模型
+        // 将数据形成 json，输入到线性规划模型：仅使用 F1 终点集合点
         try {
-            if (bID != -1 && !is_cal){
-                jsonServer.dataToJsonFile(bID, matrixRoomToExit, rooms, peosList, exits, projectPath, fileName);
+            if (bID != -1 && !is_cal) {
+                // 筛选出 F1 层的出口及其在原 exits 列表中的列索引
+                List<Exit> finalExits = new ArrayList<>();
+                List<Integer> finalExitIndex = new ArrayList<>();
+                for (int i = 0; i < exits.size(); i++) {
+                    Exit exit = exits.get(i);
+                    if (exit == null) {
+                        continue;
+                    }
+                    String exitKey = exit.getExitKey();
+                    AssemblyExitId parsed = AssemblyExitId.parse(exitKey);
+                    int exitFloorId = exit.getLt() != null ? exit.getLt().getFloorId() : parsed.floorInKey;
+                    if (parsed.floorInKey != 0) {
+                        exitFloorId = parsed.floorInKey;
+                    }
+                    if (!AssemblyExitId.isUsableAsFinalDestination(exitFloorId, parsed)) {
+                        continue;
+                    }
+                    finalExits.add(exit);
+                    finalExitIndex.add(i);
+                }
+
+                int[][] matrixRoomToFinalExit;
+                if (finalExits.isEmpty()) {
+                    // 若未识别到任何 F1 终点，则保留原有矩阵和出口集合，避免运行时崩溃
+                    matrixRoomToFinalExit = matrixRoomToExit;
+                } else {
+                    matrixRoomToFinalExit = new int[rooms.size() + peosList.size()][finalExits.size()];
+                    for (int r = 0; r < matrixRoomToFinalExit.length; r++) {
+                        for (int c = 0; c < finalExits.size(); c++) {
+                            int srcCol = finalExitIndex.get(c);
+                            matrixRoomToFinalExit[r][c] = matrixRoomToExit[r][srcCol];
+                        }
+                    }
+                }
+
+                jsonServer.dataToJsonFile(bID, matrixRoomToFinalExit, rooms, peosList,
+                        finalExits.isEmpty() ? exits : finalExits, projectPath, fileName);
             }
-        }catch (IOException e){
+        } catch (IOException e) {
         }
         // 运行模型
         if (bID != -1 && !is_cal){
@@ -927,15 +1056,18 @@ public class NavGrid {
         }
         int dis = MAXLEN;
         Exit exit = exits.get(exitID);
-        if (!isIntersectWithObs(pos, exit.getCenter()) &&!(isIntersectWithRoom(pos, exit.getCenter(),room_id)) && dis > pos.getDistance(exit.getCenter())) {
-            des.setX(exit.getCenter().getX());
-            des.setY(exit.getCenter().getY());
-            dis = (int) pos.getDistance(des);
+        
+        // 跨楼层处理：如果集合点在不同楼层，不能直接直线到达
+        if (pos.getFloorId() == exit.getCenter().getFloorId()) {
+            if (!isIntersectWithObs(pos, exit.getCenter()) &&!(isIntersectWithRoom(pos, exit.getCenter(),room_id)) && dis > pos.getDistance(exit.getCenter())) {
+                des.setX(exit.getCenter().getX());
+                des.setY(exit.getCenter().getY());
+                des.setFloorId(exit.getCenter().getFloorId());
+                dis = (int) pos.getDistance(des);
+            }
         }
 
-
         if (dis < MAXLEN) {
-            //System.out.println("目标为出口" + exit.getCenter().getX() + " " + exit.getCenter().getY());
             return des;
         }
 
@@ -944,15 +1076,21 @@ public class NavGrid {
             for (int j = 0; j < pathToAllExit.get(exitID).get(i).size(); j++){
                 int temp = pathToAllExit.get(exitID).get(i).get(j);
                 if (temp >= vertexID.size()) continue;
-                if (!(state == 1 && points.get(vertexID.get(temp)).state == 0)
-                        &&!(state == 0 && points.get(vertexID.get(temp)).state == 0
-                        && !room_id.stream().anyMatch(points.get(vertexID.get(temp)).room_id::contains))
-                        &&!isIntersectWithObs(pos, points.get(vertexID.get(temp)))
-                        && dis > pos.getDistance(points.get(vertexID.get(temp))) + minDistances_exit.get(exitID).get(temp)
+                Pos targetPos = points.get(vertexID.get(temp));
+                
+                // 必须在同一楼层才能直线感知
+                if (pos.getFloorId() != targetPos.getFloorId()) continue;
+
+                if (!(state == 1 && targetPos.state == 0)
+                        &&!(state == 0 && targetPos.state == 0
+                        && !room_id.stream().anyMatch(targetPos.room_id::contains))
+                        &&!isIntersectWithObs(pos, targetPos)
+                        && dis > pos.getDistance(targetPos) + minDistances_exit.get(exitID).get(temp)
                         && !pos.gotList.contains(vertexID.get(temp))) {
-                    des.setX(points.get(vertexID.get(temp)).getX());
-                    des.setY(points.get(vertexID.get(temp)).getY());
-                    dis = (int) pos.getDistance(points.get(vertexID.get(temp))) + minDistances_exit.get(exitID).get(temp);
+                    des.setX(targetPos.getX());
+                    des.setY(targetPos.getY());
+                    des.setFloorId(targetPos.getFloorId());
+                    dis = (int) pos.getDistance(targetPos) + minDistances_exit.get(exitID).get(temp);
                 }
             }
         }
@@ -962,18 +1100,20 @@ public class NavGrid {
         }
 
         for (int i = 0 ; i <vertexID.size(); i++) {
-                if (!(state == 1 && points.get(vertexID.get(i)).state == 0)&&!(state == 0 && points.get(vertexID.get(i)).state == 0
-                        && !room_id.stream().anyMatch(points.get(vertexID.get(i)).room_id::contains))&&!isIntersectWithObs(pos, points.get(vertexID.get(i)))
+                Pos targetPos = points.get(vertexID.get(i));
+                if (pos.getFloorId() == targetPos.getFloorId() && !(state == 1 && targetPos.state == 0)&&!(state == 0 && targetPos.state == 0
+                        && !room_id.stream().anyMatch(targetPos.room_id::contains))&&!isIntersectWithObs(pos, targetPos)
                          && !pos.gotList.contains(vertexID.get(i))) {
                     double min_dis = Double.MAX_VALUE;
                     for (int j = 0;j<minDistances_exit.size();j++){
-                        if (min_dis > pos.getDistance(points.get(vertexID.get(i))) + minDistances_exit.get(j).get(i)){
-                            min_dis = pos.getDistance(points.get(vertexID.get(i))) + minDistances_exit.get(j).get(i);
+                        if (min_dis > pos.getDistance(targetPos) + minDistances_exit.get(j).get(i)){
+                            min_dis = pos.getDistance(targetPos) + minDistances_exit.get(j).get(i);
                         }
                     }
                     if ( dis > min_dis){
-                        des.setX(points.get(vertexID.get(i)).getX());
-                        des.setY(points.get(vertexID.get(i)).getY());
+                        des.setX(targetPos.getX());
+                        des.setY(targetPos.getY());
+                        des.setFloorId(targetPos.getFloorId());
                         dis = (int) min_dis;
                     }
 
@@ -999,24 +1139,27 @@ public class NavGrid {
         Pos des = new Pos();
         int dis = MAXLEN;
         for (Exit exit : exits) {
-            if (!isIntersectWithObs(pos, exit.getCenter()) && dis > pos.getDistance(exit.getCenter())) {
+            // 必须在同一楼层且无障碍
+            if (pos.getFloorId() == exit.getCenter().getFloorId() && !isIntersectWithObs(pos, exit.getCenter()) && dis > pos.getDistance(exit.getCenter())) {
                 des.setX(exit.getCenter().getX());
                 des.setY(exit.getCenter().getY());
+                des.setFloorId(exit.getCenter().getFloorId());
                 dis = (int) pos.getDistance(des);
             }
         }
         if (dis < MAXLEN) {
-//            System.out.println("目标为出口");
             return true;
         }
 
         //寻找导航点
         for (int i = 0; i < vertexID.size(); i++) {
-            if (!isIntersectWithObs(pos, points.get(vertexID.get(i))) &&
-                    dis > pos.getDistance(points.get(vertexID.get(i))) + minDistances.get(i)) {
-                des.setX(points.get(vertexID.get(i)).getX());
-                des.setY(points.get(vertexID.get(i)).getY());
-                dis = (int) pos.getDistance(points.get(vertexID.get(i))) + minDistances.get(i);
+            Pos targetPos = points.get(vertexID.get(i));
+            if (pos.getFloorId() == targetPos.getFloorId() && !isIntersectWithObs(pos, targetPos) &&
+                    dis > pos.getDistance(targetPos) + minDistances.get(i)) {
+                des.setX(targetPos.getX());
+                des.setY(targetPos.getY());
+                des.setFloorId(targetPos.getFloorId());
+                dis = (int) pos.getDistance(targetPos) + minDistances.get(i);
             }
         }
         if (dis < MAXLEN) {
@@ -1113,6 +1256,9 @@ public class NavGrid {
     }
 
     private int resolveExitIndex(int exitId) {
+        if (exitId >= 0 && exits != null && exitId < exits.size()) {
+            return exitId;
+        }
         if (exits != null) {
             for (int idx = 0; idx < exits.size(); idx++) {
                 Exit exit = exits.get(idx);
@@ -1120,9 +1266,6 @@ public class NavGrid {
                     return idx;
                 }
             }
-        }
-        if (exitId >= 0 && exits != null && exitId < exits.size()) {
-            return exitId;
         }
         return -1;
     }

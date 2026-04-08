@@ -28,6 +28,7 @@ namespace rvocpp {
         double cy;
         int id;
         int floorId {0};
+        std::string name;  // exitKey for teleportation parsing (e.g., "-1-1-F1")
     };
 
     struct ObstacleC {
@@ -138,6 +139,9 @@ namespace rvocpp {
         bool hasEdge(const std::vector<std::pair<int, int>>& edges, int a, int b) const;
         int resolveExitIndex(int exitId) const;
         bool canReachDirectly(const NavPointC& from, const NavPointC& to) const;
+
+        // Parse exit key like "-1-1-F1" to extract floor, assemblyNum, teleportTarget
+        static void parseExitKey(const std::string& name, int& floor, int& assemblyNum, std::string& teleportTarget);
     };
 
 } // namespace rvocpp

@@ -8,6 +8,7 @@ import com.rvo.rvoserver.pojo.*;
 import com.rvo.rvoserver.server.*;
 import com.rvo.rvoserver.server.impl.JsonServerA;
 import com.rvo.rvoserver.server.impl.RvoServerC;
+import com.rvo.rvoserver.utils.AssemblyExitId;
 import com.rvo.rvoserver.utils.EncryptedClassLoader;
 import com.sun.tools.javac.Main;
 import jakarta.servlet.ServletOutputStream;
@@ -143,14 +144,12 @@ public class EvaluateController {
 //            System.out.println("模拟完成");
 //            return Result.success();
 //        }
-        String Path1 = projectPath + "/rvo/source/" + bID + "/error.log" ;
+        Path errorDir = Paths.get(projectPath, "rvo", "source", String.valueOf(bID));
+        Files.createDirectories(errorDir);
+        String Path1 = errorDir.resolve("error.log").toString();
 
-        // 使用FileWriter写入文件
         try (FileWriter writer = new FileWriter(Path1)) {
-            // 将Map转换为字符串
             String content = mapToString(request);
-
-            // 写入文件
             writer.write(content);
         }
 
@@ -182,23 +181,35 @@ public class EvaluateController {
             double min_grd = Integer.MAX_VALUE; // 最小剂量
             double min_pre_grd = Integer.MAX_VALUE; // 最小个人剂量
 
+            // temp_id 现在是“编号集合”，如 "1,2,4"
             String[] ids = temp_id.split(",");
-            ArrayList<Integer> intArray = new ArrayList<>(); // 创建一个int数组，长度与分割后的字符串数组相同
+            Set<Integer> selectedNums = new HashSet<>();
+            ArrayList<String> idArray = new ArrayList<>(); // 存储字符串ID，兼容新旧格式
 
             for (int i = 0; i < ids.length; i++) {
-                intArray.add(Integer.parseInt(ids[i])); // 将每个分割后的字符串转换为int
+                idArray.add(ids[i].trim()); // 直接存储字符串
             }
             List<HashMap> exitLists1 = (List<HashMap>) request.get("exit"); //出口顶点坐标
+            
+            // 将选中的“编号”映射到所有楼层的对应集合点
+            List<HashMap> allMatchingExits = new ArrayList<>();
+            for (HashMap exit : exitLists1) {
+                String exitKey = String.valueOf(exit.get("id")).trim();
+                AssemblyExitId parsed = AssemblyExitId.parse(exitKey);
+                // 如果集合点编号在选中的 idArray 中，则该物理集合点（不论在哪层）都应包含在内
+                if (idArray.contains(String.valueOf(parsed.assemblyNum))) {
+                    allMatchingExits.add(exit);
+                }
+            }
+
+            // 修改疏散结束逻辑：只有 F1 层的小人到达集合点才算疏散完成
+            // (注：后端 RvoServer / Python 部分会根据 exitLists 进行判断)
+            
             for (double k = 0; k < 0.1; k+=0.1){
                 String file =  temp_id + "/" + String.valueOf((int)(10*k));
                 List<HashMap> navPos = (List<HashMap>) request.get("navPos"); //导航坐标点
-                // 获取选择的出口
-                List<HashMap> exitLists = new ArrayList<>();
-                for (HashMap exit:exitLists1){
-                    if (intArray.contains(((Number)exit.get("id")).intValue())){
-                        exitLists.add(exit);
-                    }
-                }
+                // 使用过滤后的完整出口列表
+                List<HashMap> exitLists = allMatchingExits;
                 List<HashMap> rooms = (List<HashMap>) request.get("rooms");
                 List<HashMap> peosList = (List<HashMap>) request.get("peos");
                 List<HashMap> connectors = (List<HashMap>) request.get("connectors");
@@ -226,29 +237,93 @@ public class EvaluateController {
                     }
                 }
 
-                List<Exit> exits = new ArrayList<>();
-                for(int i = 0; i < exitLists.size(); i++) {
-                    Pos exitA = new Pos(((Number) exitLists.get(i).get("x0")).doubleValue(), ((Number) exitLists.get(i).get("y0")).doubleValue());
-                    Pos exitB = new Pos(((Number) exitLists.get(i).get("x1")).doubleValue(), ((Number) exitLists.get(i).get("y2")).doubleValue());
-                    int exitFloorId = getIntOrDefault(exitLists.get(i).get("floorId"), 0);
-                    exitA.setFloorId(exitFloorId);
-                    exitB.setFloorId(exitFloorId);
-                    int numOfPerson = ((Number) exitLists.get(i).get("peoNum")).intValue();
-                    String exitName = (String) exitLists.get(i).get("name");
-                    Exit exit = new Exit(Long.valueOf((int)exitLists.get(i).get("id")) , exitA, exitB, numOfPerson,exitName);
-                    exits.add(exit);
-                }
                 List<Exit> exitsAll = new ArrayList<>();
                 for(int i = 0; i < exitLists1.size(); i++) {
                     Pos exitA = new Pos(((Number) exitLists1.get(i).get("x0")).doubleValue(), ((Number) exitLists1.get(i).get("y0")).doubleValue());
                     Pos exitB = new Pos(((Number) exitLists1.get(i).get("x1")).doubleValue(), ((Number) exitLists1.get(i).get("y2")).doubleValue());
-                    int exitFloorId = getIntOrDefault(exitLists1.get(i).get("floorId"), 0);
+                    String exitKey = jsonExitIdToExitKey(exitLists1.get(i).get("id"));
+                    AssemblyExitId parsed = AssemblyExitId.parse(exitKey);
+                    int exitFloorId = getIntOrDefault(exitLists1.get(i).get("floorId"), parsed.floorInKey);
+                    if (parsed.floorInKey != 0) {
+                        exitFloorId = parsed.floorInKey;
+                    }
                     exitA.setFloorId(exitFloorId);
                     exitB.setFloorId(exitFloorId);
                     int numOfPerson = ((Number) exitLists1.get(i).get("peoNum")).intValue();
                     String exitName = (String) exitLists1.get(i).get("name");
-                    Exit exit = new Exit(Long.valueOf((int)exitLists1.get(i).get("id")), exitA, exitB, numOfPerson,exitName);
+                    long idVal = jsonIdToLong(exitLists1.get(i).get("id"), i);
+                    Exit exit = new Exit(idVal, exitKey, exitA, exitB, numOfPerson, exitName);
                     exitsAll.add(exit);
+                }
+                List<Exit> exitsSelected = new ArrayList<>();
+                for(int i = 0; i < exitLists.size(); i++) {
+                    Pos exitA = new Pos(((Number) exitLists.get(i).get("x0")).doubleValue(), ((Number) exitLists.get(i).get("y0")).doubleValue());
+                    Pos exitB = new Pos(((Number) exitLists.get(i).get("x1")).doubleValue(), ((Number) exitLists.get(i).get("y2")).doubleValue());
+                    String exitKey = jsonExitIdToExitKey(exitLists.get(i).get("id"));
+                    AssemblyExitId parsed = AssemblyExitId.parse(exitKey);
+                    int exitFloorId = getIntOrDefault(exitLists.get(i).get("floorId"), parsed.floorInKey);
+                    if (parsed.floorInKey != 0) {
+                        exitFloorId = parsed.floorInKey;
+                    }
+                    exitA.setFloorId(exitFloorId);
+                    exitB.setFloorId(exitFloorId);
+                    int numOfPerson = ((Number) exitLists.get(i).get("peoNum")).intValue();
+                    String exitName = (String) exitLists.get(i).get("name");
+                    long idVal = jsonIdToLong(exitLists.get(i).get("id"), i);
+                    exitsSelected.add(new Exit(idVal, exitKey, exitA, exitB, numOfPerson, exitName));
+                }
+                List<Exit> exits = new ArrayList<>();
+                for (Exit e : exitsSelected) {
+                    int ef = e.getLt() != null ? e.getLt().getFloorId() : 0;
+                    AssemblyExitId parsed = AssemblyExitId.parse(e.getExitKey());
+                    // 只要是合法集合点，就参与导航图构建
+                    if (AssemblyExitId.isUsableAsGraphNode(ef, parsed)) {
+                        exits.add(e);
+                    }
+                }
+                if (exits.isEmpty()) {
+                    return Result.error("所选集合点均不可用（非首层且无传送目标），请重新选择出口方案");
+                }
+                for (int ei = 0; ei < exits.size(); ei++) {
+                    exits.get(ei).setId((long) ei);
+                }
+
+                // 若某楼层有人但该楼层无可用集合点，则无法疏散
+                Map<Integer, Integer> peoplePerFloor = new HashMap<>();
+                for (int ri = 0; ri < rooms.size(); ri++) {
+                    int fid = getIntOrDefault(rooms.get(ri).get("floorId"), 0);
+                    List<HashMap> people = (List<HashMap>) rooms.get(ri).get("peos");
+                    int cnt = people == null ? 0 : people.size();
+                    if (cnt > 0) {
+                        peoplePerFloor.merge(fid, cnt, Integer::sum);
+                    }
+                }
+                for (int pi = 0; pi < peosList.size(); pi++) {
+                    int fid = getIntOrDefault(peosList.get(pi).get("floorId"), 0);
+                    List<HashMap> people = (List<HashMap>) peosList.get(pi).get("peos");
+                    int cnt = people == null ? 0 : people.size();
+                    if (cnt > 0) {
+                        peoplePerFloor.merge(fid, cnt, Integer::sum);
+                    }
+                }
+                for (Map.Entry<Integer, Integer> pe : peoplePerFloor.entrySet()) {
+                    int fid = pe.getKey();
+                    int cnt = pe.getValue() == null ? 0 : pe.getValue();
+                    if (fid == 0 || cnt <= 0) {
+                        continue;
+                    }
+                    boolean hasExitOnFloor = false;
+                    for (Exit ex : exits) {
+                        int ef = ex.getLt() != null ? ex.getLt().getFloorId() : 0;
+                        if (ef == fid) {
+                            hasExitOnFloor = true;
+                            break;
+                        }
+                    }
+                    if (!hasExitOnFloor) {
+                        String floorName = fid > 0 ? "F" + (fid + 1) : "B" + Math.abs(fid);
+                        return Result.error("楼层 " + floorName + " 有人员但无可用集合点（请配置带传送目标的集合点或调整方案编号集合）");
+                    }
                 }
 
                 List<Pos> points = new ArrayList<>();
@@ -292,7 +367,10 @@ public class EvaluateController {
                 Blueprint blueprint = blueprintMapper.getBlueprint(bID);
                 GRD grd = new GRD(blueprint.getWidth(), blueprint.getHeight(),weight*100,0);
                 grd.setScope(blueprint.getX0(), blueprint.getY0(), blueprint.getX1(), blueprint.getY1());
-                boolean grdOK = grd.initFromFile(kw,projectPath + "/rvo/source/" + blueprint.getBlueprintID());
+                // GRD 已废除：总是使用零剂量占位网格
+                int gx = 128, gy = 128;
+                grd.setX(gx); grd.setY(gy);
+                grd.setValue(new double[gx][gy]);
                 NavGrid navGrid = new NavGrid(bID, points, obstacles, exits, rooms,peosList, grd, status, projectPath, venvPath,false, file);
                 navGrid.generateLines();
                 if(!navGrid.isReached()) {
@@ -419,8 +497,7 @@ public class EvaluateController {
                             if (roomToExit[i][w] <= 0) continue;
                             else {
                                 roomToExit[i][w] -= 1;
-                                // 使用 Exit 实体的真实 ID
-                                agent.setExitId(exits.get(w).getId().intValue());
+                                agent.setExitId(w);
                                 break;
                             }
                         }
@@ -507,8 +584,7 @@ public class EvaluateController {
                             if (roomToExit[i + rooms.size()][w] <= 0) continue;
                             else {
                                 roomToExit[i + rooms.size()][w] -= 1;
-                                // 使用 Exit 实体的真实 ID
-                                agent.setExitId(exits.get(w).getId().intValue());
+                                agent.setExitId(w);
                                 break;
                             }
                         }
@@ -668,10 +744,19 @@ public class EvaluateController {
         List<HashMap> navPos = (List<HashMap>) request.get("navPos"); //导航坐标点
         List<HashMap> rooms = (List<HashMap>) request.get("rooms");
         List<HashMap> peosList = (List<HashMap>) request.get("peos");
-        Set<Integer> numberMethod = new HashSet<>();
-        // 进行初筛
-        if (exitLists.size() < numMin){
-            return Result.error("集合点数量小于最少选择出口数，请在模拟参数中重新设置");
+        // 先按“编号”（exitId 第二段）统计全楼不同编号
+        Set<Integer> allNumsSet = new HashSet<>();
+        for (HashMap exit : exitLists) {
+            AssemblyExitId parsed = AssemblyExitId.parse(exit.get("id"));
+            if (parsed.assemblyNum > 0) {
+                allNumsSet.add(parsed.assemblyNum);
+            }
+        }
+        ArrayList<Integer> allNums = new ArrayList<>(allNumsSet);
+        allNums.sort(Integer::compareTo);
+
+        if (allNums.size() < numMin) {
+            return Result.error("全楼可统计的集合点编号数量小于最少选择出口数，请在模拟参数中重新设置");
         }
 
         List<HashMap<String,Object>> ExitMethods = new ArrayList<>();
@@ -682,11 +767,19 @@ public class EvaluateController {
         GRD grd = new GRD(blueprint.getWidth(), blueprint.getHeight(),0,1);
         grd.setScope(blueprint.getX0(), blueprint.getY0(), blueprint.getX1(), blueprint.getY1());
 
-        boolean grdOK = grd.initFromFile(projectPath + "/rvo/source/" + blueprint.getBlueprintID() + "/GRD_Data/Effective_01-00.GRD");
-        List<Exit> validExits = new ArrayList<>();
-        ArrayList<Integer> nums = new ArrayList<Integer>();
-        ArrayList<Double> ExitGrds = new ArrayList<>();  // 保存每个出口剂量
-        for (HashMap exit:exitLists){
+        // GRD 已废除：总是使用零剂量占位网格
+        int gx = 128, gy = 128;
+        grd.setX(gx); grd.setY(gy);
+        grd.setValue(new double[gx][gy]);
+        // 构建候选出口点：满足剂量阈值且在该楼层可用（非F1必须有传送目标；F1放行）
+        List<Exit> candidateExits = new ArrayList<>();
+        List<Integer> candidateNums = new ArrayList<>();
+        List<Double> candidateDose = new ArrayList<>();
+        Set<Integer> validF1Nums = new HashSet<>(); // 统计 F1 层可用的集合点编号
+        Set<Integer> allUsableNums = new HashSet<>(); // 统计全楼所有可用的集合点编号（包含非F1传送点）
+        Map<Integer, Set<Integer>> floorToUsableNums = new HashMap<>(); // 统计每个楼层可用的集合点编号
+
+        for (HashMap exit : exitLists) {
             double exitGrds = 0;
             int x0,x1,y0,y1;
             x0 = Math.min(((Number)exit.get("x0")).intValue(),((Number)exit.get("x2")).intValue());
@@ -699,21 +792,57 @@ public class EvaluateController {
                 }
             }
             exitGrds /= ((x1-x0)*(y1-y0));
-            if (exitGrds < weight){
-                Pos exitA = new Pos(((Number) exit.get("x0")).doubleValue(), ((Number) exit.get("y0")).doubleValue());
-                Pos exitB = new Pos(((Number) exit.get("x1")).doubleValue(), ((Number) exit.get("y1")).doubleValue());
-                int numOfPerson = ((Number) exit.get("peoNum")).intValue();
-                String exitName = (String) exit.get("name");
-                Exit exit1 = new Exit(((Number)exit.get("id")).longValue(), exitA, exitB, numOfPerson,exitName);
-                validExits.add(exit1);
-                nums.add(nums.size());
-                ExitGrds.add(exitGrds);
+            if (exitGrds >= weight) {
+                continue;
             }
-            //System.out.println("出口"+exit.get("id") + ":单位面积剂量值为" + exitGrds);
+
+            String exitKey = jsonExitIdToExitKey(exit.get("id"));
+            AssemblyExitId parsed = AssemblyExitId.parse(exitKey);
+            int exitFloorId = getIntOrDefault(exit.get("floorId"), parsed.floorInKey);
+            if (parsed.floorInKey != 0) {
+                exitFloorId = parsed.floorInKey;
+            }
+
+            // 所有合法集合点都可作为图节点参与路径规划
+            if (!AssemblyExitId.isUsableAsGraphNode(exitFloorId, parsed)) {
+                continue;
+            }
+
+            // 仅 F1 层集合点可作为最终终点
+            if (AssemblyExitId.isUsableAsFinalDestination(exitFloorId, parsed)) {
+                validF1Nums.add(parsed.assemblyNum);
+            }
+            allUsableNums.add(parsed.assemblyNum);
+            floorToUsableNums.computeIfAbsent(exitFloorId, k -> new HashSet<>()).add(parsed.assemblyNum);
+
+            Pos exitA = new Pos(((Number) exit.get("x0")).doubleValue(), ((Number) exit.get("y0")).doubleValue());
+            Pos exitB = new Pos(((Number) exit.get("x1")).doubleValue(), ((Number) exit.get("y1")).doubleValue());
+            exitA.setFloorId(exitFloorId);
+            exitB.setFloorId(exitFloorId);
+            int numOfPerson = ((Number) exit.get("peoNum")).intValue();
+            String exitName = (String) exit.get("name");
+            Exit e = new Exit((long) candidateExits.size(), exitKey, exitA, exitB, numOfPerson, exitName);
+            candidateExits.add(e);
+            candidateNums.add(parsed.assemblyNum);
+            candidateDose.add(exitGrds);
         }
-        if (validExits.size() < numMin){
-            return Result.error("剂量筛选后，集合点数量小于最少选择出口数，请在模拟参数中重新设置，现可选出口数为: "+validExits.size() );
+
+        // 识别每个楼层的强制性集合点（如果该楼层只有某些集合点可用，则它们是强制性的）
+        Set<Integer> mandatoryNums = new HashSet<>();
+        for (Map.Entry<Integer, Set<Integer>> entry : floorToUsableNums.entrySet()) {
+            if (entry.getValue().size() > 0) {
+                // 如果一个楼层只有很少的可用集合点，这里可能需要逻辑来确定哪些是必选的
+                // 但根据用户要求，如果B1只有1，F3只有4，那么1和4应该被视为必须包含在方案中
+                // 暂时我们将所有楼层的集合点都放入候选池，但在验证阶段严格检查
+            }
         }
+
+        // 排列组合的对象应基于全楼所有可用的编号，而不只是 F1
+        ArrayList<Integer> candidateAllNums = new ArrayList<>(allUsableNums);
+        candidateAllNums.sort(Integer::compareTo);
+        numMax = Math.min(candidateAllNums.size(), numMax);
+
+
         //System.out.println("可选最多出口数:"+validExits.size());
         List<Obstacle> obstacles = new ArrayList<>();
         //房间
@@ -724,6 +853,9 @@ public class EvaluateController {
                 if(((Number) walls.get(j).get("x")).doubleValue() < MinPos || ((Number) walls.get(j + 1).get("x")).doubleValue() < MinPos) { continue; }
                 Pos A = new Pos(((Number) walls.get(j).get("x")).doubleValue(), ((Number) walls.get(j).get("y")).doubleValue());
                 Pos B = new Pos(((Number) walls.get(j + 1).get("x")).doubleValue(), ((Number) walls.get(j + 1).get("y")).doubleValue());
+                int wallFloorId = getIntOrDefault(walls.get(j).get("floorId"), getIntOrDefault(rooms.get(i).get("floorId"), 0));
+                A.setFloorId(wallFloorId);
+                B.setFloorId(wallFloorId);
                 obstacles.add(new Obstacle(obstacles.size() + 1, A, B));
             }
         }
@@ -733,8 +865,10 @@ public class EvaluateController {
         List<Pos> points = new ArrayList<>();
         for (int i = 0; i < navPos.size(); i++) {
             int state = 1;
+            int floorId = getIntOrDefault(navPos.get(i).get("floorId"), 0);
             ArrayList<Integer> room_id = new ArrayList<>();
             Pos temp1 = new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue());
+            temp1.setFloorId(floorId);
             for(int j = 0; j < rooms.size();j++){
                 List<HashMap> walls = (List<HashMap>) rooms.get(j).get("walls");
                 ArrayList<Pos> temp_points = new ArrayList<Pos>();
@@ -749,107 +883,179 @@ public class EvaluateController {
                     room_id.add(j);
                 }
             }
-            points.add(new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue(),state,room_id));
+            Pos navP = new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue(),state,room_id);
+            navP.setFloorId(floorId);
+            points.add(navP);
         }
 
         // 计算最短道路
-        NavGrid navGrid = new NavGrid(bID, points, obstacles, validExits, rooms,peosList, grd, 1, projectPath, venvPath,true, "0");
+        NavGrid navGrid = new NavGrid(bID, points, obstacles, candidateExits, rooms,peosList, grd, 1, projectPath, venvPath,true, "0");
         try {
             navGrid.generateLines();
         } catch (IOException e) {
             return Result.error("路径生成失败：" + e.getMessage());
         }
         List<List<Integer>> MinDistancesExit = navGrid.getMinDistancesExit();
-        // 开始排列组合
-        numMax = Math.min(validExits.size(),numMax);
-
-        for (int i = numMin; i <= numMax; i++){
-            if (i <= 0) continue;
-            // 获取组合方案
+        // 开始排列组合（基于全楼可用的编号）
+        for (int choose = numMin; choose <= numMax; choose++){
+            if (choose <= 0) continue;
             List<List<Integer>> result = new ArrayList<>();
-            getAllCombinations(nums,i,0, new ArrayList<>(),result);
-            // 开始遍历组合方案
-            for (List<Integer> combination : result) {
-                // 判断是否均可到达出口
-                int num = 0;
-                for (int temp : combination){
-                    num += validExits.get(temp).getNumOfPerson();
-                }
-                if (num < peoNumber) {
-                    //System.out.println("人数不够" + combination + ":" + num + "  " + peoNumber);
-                    continue;
-                } // 出口无法容纳所有人
-                // 计算指标
-                // 平均剂量;平均距离;平均时间;平均人数
-                boolean can_use = true;
-                String ids = ""; // 出口的id
-                double avg_grd = 0;
-                double avg_dis = 0;
-                double avg_time = 0;
-                double avg_peo = peoNumber/combination.size();
-                for (int temp : combination){
-                    avg_grd+=ExitGrds.get(temp);
-                    if (ids.isEmpty()){
-                        ids+=validExits.get(temp).getId();
-                    }else {
-                        ids+="," + validExits.get(temp).getId();
+            getAllCombinations(candidateAllNums, choose, 0, new ArrayList<>(), result);
+
+            for (List<Integer> combinationNums : result) {
+                Set<Integer> comboSet = new HashSet<>(combinationNums);
+
+                // 强制要求方案中必须包含至少一个 F1 层的集合点编号，否则无法完成最终疏散
+                boolean hasF1 = false;
+                for (Integer num : comboSet) {
+                    if (validF1Nums.contains(num)) {
+                        hasF1 = true;
+                        break;
                     }
                 }
-                avg_grd /= combination.size();
-                for(int j = 0; j < rooms.size(); j++) {     // 遍历房间
-                    if (((List<HashMap>) rooms.get(j).get("peos")).size() > 0){
-                        double min_ex = Double.MAX_VALUE;
-                        for (int temp : combination){
-                            if (min_ex > MinDistancesExit.get(temp).get(navGrid.getRoomIndex(j))){
-                                min_ex = MinDistancesExit.get(temp).get(navGrid.getRoomIndex(j));
+                if (!hasF1) continue;
+
+                // 验证所有楼层的人员是否都能找到路径到达 F1
+                // 逻辑：对于每一个有人的房间（所在楼层为f），必须在comboSet中存在该楼层f可用的集合点，
+                // 且该集合点能够通过一系列传送最终到达F1。
+                boolean canReachF1FromAllFloors = true;
+                for (Map.Entry<Integer, Set<Integer>> entry : floorToUsableNums.entrySet()) {
+                    int floor = entry.getKey();
+                    boolean floorHasPeople = false;
+                    // 检查该楼层是否有房间有人
+                    for (int j = 0; j < rooms.size(); j++) {
+                        int roomFloorId = getIntOrDefault(rooms.get(j).get("floorId"), 0);
+                        if (roomFloorId == floor) {
+                            List<HashMap> people = (List<HashMap>) rooms.get(j).get("peos");
+                            if (people != null && people.size() > 0) {
+                                floorHasPeople = true;
+                                break;
                             }
                         }
-                        if (min_ex == Double.MAX_VALUE){
-                            //System.out.println(min_ex);
-                            can_use = false;
-                            break;
-                        }
-                        double speed = Double.parseDouble((String)((HashMap)(rooms.get(j).get("attr"))).get("speed"));
-                        avg_dis += min_ex * ((List<HashMap>) rooms.get(j).get("peos")).size();
-                        //System.out.println(avg_dis);
-                        avg_time += (min_ex * ((List<HashMap>) rooms.get(j).get("peos")).size())/(speed/2);  // 计算时间
                     }
-                }
-                for(int j = 0; j < peosList.size() && can_use; j++) {     // 遍历人口片
-                    if (((List<HashMap>) peosList.get(j).get("peos")).size() > 0){
-                        double min_ex = Double.MAX_VALUE;
-                        for (int temp : combination){
-                            if (min_ex > MinDistancesExit.get(temp).get(navGrid.getRoomIndex(j+rooms.size()))){
-                                min_ex = MinDistancesExit.get(temp).get(navGrid.getRoomIndex(j+rooms.size()));
+                    if (!floorHasPeople) {
+                        for (int j = 0; j < peosList.size(); j++) {
+                            int peoFloorId = getIntOrDefault(peosList.get(j).get("floorId"), 0);
+                            if (peoFloorId == floor) {
+                                List<HashMap> people = (List<HashMap>) peosList.get(j).get("peos");
+                                if (people != null && people.size() > 0) {
+                                    floorHasPeople = true;
+                                    break;
+                                }
                             }
                         }
-                        if (min_ex == Double.MAX_VALUE){
-                            //System.out.println(combination + " "  + j);
-                            can_use = false;
+                    }
+
+                    if (floorHasPeople) {
+                        // 如果该楼层有人，必须在方案中选择至少一个该楼层可用的集合点
+                        boolean floorCovered = false;
+                        for (Integer num : entry.getValue()) {
+                            if (comboSet.contains(num)) {
+                                floorCovered = true;
+                                break;
+                            }
+                        }
+                        if (!floorCovered) {
+                            canReachF1FromAllFloors = false;
                             break;
                         }
-                        double speed = Double.parseDouble((String)((HashMap)(peosList.get(j).get("attr"))).get("speed"));
-                        avg_dis += min_ex * ((List<HashMap>) peosList.get(j).get("peos")).size();
-                        //System.out.println(avg_dis);
-                        avg_time += (min_ex * ((List<HashMap>) peosList.get(j).get("peos")).size())/speed;  // 计算时间
                     }
                 }
-                if (!can_use) continue;
-                avg_dis /= peoNumber;
-                avg_time /= peoNumber;
+                if (!canReachF1FromAllFloors) continue;
+
+                // 验证所有楼层的人员是否都能找到路径到达 F1
+                boolean canUse = true;
+                double sumDistWeighted = 0.0;
+                double sumP = 0.0;
+                double sumDoseWeighted = 0.0;
+
+                // 我们需要检查在这个方案组合下，每个有人的区域是否都能到达 F1
+                for(int j = 0; j < rooms.size(); j++) {
+                    List<HashMap> people = (List<HashMap>) rooms.get(j).get("peos");
+                    int cnt = people == null ? 0 : people.size();
+                    if (cnt <= 0) continue;
+
+                    int roomGraphIdx = navGrid.getRoomIndex(j);
+                    double minEx = Double.POSITIVE_INFINITY;
+                    double bestExDose = 0;
+                    
+                    // 寻找该房间可达的、属于方案组合内的、最近的 F1 出口（通过 NavGrid 的路径规划已包含多层）
+                    for (int exIdx = 0; exIdx < candidateExits.size(); exIdx++) {
+                        AssemblyExitId exParsed = AssemblyExitId.parse(candidateExits.get(exIdx).getExitKey());
+                        // 只有 F1 的集合点是最终目的地
+                        if (exParsed.floorInKey != 0 || !comboSet.contains(exParsed.assemblyNum)) {
+                            continue;
+                        }
+                        
+                        int d = MinDistancesExit.get(exIdx).get(roomGraphIdx);
+                        if (d < minEx) {
+                            minEx = d;
+                            bestExDose = candidateDose.get(exIdx);
+                        }
+                    }
+
+                    if (!Double.isFinite(minEx)) {
+                        canUse = false;
+                        break;
+                    }
+                    
+                    double speed = Double.parseDouble((String)((HashMap)(rooms.get(j).get("attr"))).get("speed"));
+                    sumDistWeighted += minEx * cnt;
+                    sumP += cnt;
+                    sumDoseWeighted += bestExDose * cnt;
+                }
+
+                if (!canUse) continue;
+
+                double avgDose = sumP > 0 ? sumDoseWeighted / sumP : 0;
+                double avgDis = sumP > 0 ? sumDistWeighted / sumP : 0;
+                double avgP = sumP;
+                StringBuilder sb = new StringBuilder();
+                for (int k = 0; k < combinationNums.size(); k++) {
+                    if (k > 0) sb.append(",");
+                    sb.append(combinationNums.get(k));
+                }
+
+                for(int j = 0; j < peosList.size() && canUse; j++) {
+                    List<HashMap> people = (List<HashMap>) peosList.get(j).get("peos");
+                    int cnt = people == null ? 0 : people.size();
+                    if (cnt <= 0) continue;
+
+                    int peoGraphIdx = navGrid.getRoomIndex(j + rooms.size());
+                    double minEx = Double.POSITIVE_INFINITY;
+                    double bestExDose = 0;
+
+                    for (int exIdx = 0; exIdx < candidateExits.size(); exIdx++) {
+                        AssemblyExitId exParsed = AssemblyExitId.parse(candidateExits.get(exIdx).getExitKey());
+                        if (exParsed.floorInKey != 0 || !comboSet.contains(exParsed.assemblyNum)) {
+                            continue;
+                        }
+                        
+                        int d = MinDistancesExit.get(exIdx).get(peoGraphIdx);
+                        if (d < minEx) {
+                            minEx = d;
+                            bestExDose = candidateDose.get(exIdx);
+                        }
+                    }
+
+                    if (!Double.isFinite(minEx)) {
+                        canUse = false;
+                        break;
+                    }
+                    sumDistWeighted += minEx * cnt;
+                    sumP += cnt;
+                    sumDoseWeighted += bestExDose * cnt;
+                }
+
                 DecimalFormat df = new DecimalFormat("#.00");
                 DecimalFormat df1 = new DecimalFormat("#.00000");
                 HashMap methods = new HashMap<>();
-                methods.put("method",ids);
-                methods.put("number",combination.size());
-                methods.put("grd",df1.format(avg_grd));
-                methods.put("dis",df.format(avg_dis));
-                methods.put("time",df.format(avg_time*2));
-                methods.put("peo",df.format(avg_peo));
-                // 添加方案
-                //System.out.println("add :" + ids);
+                methods.put("method", sb.toString());
+                methods.put("number", combinationNums.size());
+                methods.put("grd", df1.format(avgDose));
+                methods.put("dis", df.format(avgDis));
+                methods.put("peo", df.format(avgP));
                 ExitMethods.add(methods);
-                numberMethod.add(combination.size());
             }
         }
         // 按最短距离排序
@@ -863,41 +1069,12 @@ public class EvaluateController {
         });
         System.out.println("出口方案生成成功");
         if (ExitMethods.size() == 0){
-            HashMap<Integer, Integer> outSide = new HashMap();
-            ArrayList<Integer> canNotRoom = new ArrayList<>();
-            ArrayList<Integer> canNotPeos = new ArrayList<>();
-            for (List<Integer> temp1: MinDistancesExit){
-                for(int k = temp1.size() - rooms.size() - peosList.size(); k < temp1.size();k++){
-                    if (temp1.get(k) == Integer.MAX_VALUE){
-                        if (outSide.containsKey(k)){
-                            int value = outSide.get(k);
-                            outSide.put(k, value + 1);
-                        }else {
-                            outSide.put(k,1);
-                        }
-                    }
-                }
-            }
-            for (Map.Entry<Integer, Integer> entry : outSide.entrySet()) {
-                if (entry.getValue() == MinDistancesExit.size()){
-                    if (entry.getKey() -MinDistancesExit.get(0).size() + rooms.size() + peosList.size() >= rooms.size()){
-                        canNotPeos.add(entry.getKey()-MinDistancesExit.get(0).size() + peosList.size());
-                    }else {
-                        canNotRoom.add(entry.getKey()-MinDistancesExit.get(0).size() + rooms.size() + peosList.size());
-                    }
-
-                }
-            }
-            if (canNotRoom.size()==0&&canNotPeos.size()==0){
-                System.out.println(canNotRoom+ " " + canNotPeos);
-            }else {
-                return Result.error("出口均不可撤离所有人，请增大剂量阈值，或提高出口数量，或提高出口能容纳人数。");
-            }
-
+            return Result.error("在当前剂量阈值与楼层可用性约束下，没有任何编号组合能覆盖所有楼层人群，请调整参数或补充可传送集合点");
         }
         HashMap res= new HashMap();
         res.put("ExitMethods",ExitMethods);
-        res.put("number",numberMethod);
+        // 返回全楼不同编号数量，供前端展示“总集合点个数”
+        res.put("totalAssemblyNums", allNums.size());
         return Result.success(res);
  //
 
@@ -1732,6 +1909,28 @@ public class EvaluateController {
         }
         return  num;
     }
+    private static String jsonExitIdToExitKey(Object idObj) {
+        if (idObj == null) {
+            return "";
+        }
+        return idObj.toString().trim();
+    }
+
+    private long jsonIdToLong(Object idObj, int fallbackIndex) {
+        if (idObj instanceof Number) {
+            return ((Number) idObj).longValue();
+        }
+        String s = idObj == null ? "" : idObj.toString().trim();
+        if (s.matches("-?\\d+")) {
+            try {
+                return Long.parseLong(s);
+            } catch (NumberFormatException e) {
+                return fallbackIndex;
+            }
+        }
+        return Integer.toUnsignedLong(s.hashCode());
+    }
+
     private int getIntOrDefault(Object value, int defaultValue) {
         if (value == null) {
             return defaultValue;

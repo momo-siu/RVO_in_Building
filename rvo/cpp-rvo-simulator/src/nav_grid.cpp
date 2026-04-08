@@ -5,6 +5,8 @@
 #include <iterator>
 #include <limits>
 #include <unordered_set>
+#include <sstream>
+#include <string>
 
 namespace rvocpp {
 
@@ -146,6 +148,7 @@ void NavGrid::augmentPointsWithRoomsAndGroups() {
         nav.x = center.x;
         nav.y = center.y;
         nav.state = 0;
+        nav.floorId = room.floorId;
         nav.roomIds = roomIds;
         roomPointIndex_[idx] = pointIndex;
         points_.push_back(std::move(nav));
@@ -196,6 +199,7 @@ void NavGrid::augmentPointsWithRoomsAndGroups() {
         nav.x = center.x;
         nav.y = center.y;
         nav.state = state;
+        nav.floorId = group.floorId;
         nav.roomIds = roomIds;
         peoplePointIndex_[idx] = static_cast<int>(points_.size());
         points_.push_back(nav);
@@ -321,6 +325,7 @@ void NavGrid::generateGraph() {
         nav.x = exit.cx;
         nav.y = exit.cy;
         nav.state = 1;
+        nav.floorId = exit.floorId;
         vertices_.push_back(nav);
     }
 
@@ -369,6 +374,76 @@ void NavGrid::generateGraph() {
                 matrix_[j][i] = MAXLEN;
             }
         }
+    }
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            if (i == j) {
+                continue;
+            }
+            if (vertices_[i].floorId != vertices_[j].floorId) {
+                matrix_[i][j] = MAXLEN;
+            }
+        }
+    }
+
+    // Add teleportation edges between same-numbered exits on adjacent floors
+    int exitStartIdx = n - static_cast<int>(exits_.size());
+    for (int i = exitStartIdx; i < n; ++i) {
+        for (int j = exitStartIdx; j < n; ++j) {
+            if (i == j) continue;
+
+            const ExitC& exit1 = exits_[i - exitStartIdx];
+            const ExitC& exit2 = exits_[j - exitStartIdx];
+
+            // Parse exit1 name to get floor, assemblyNum, and teleportTarget
+            int floor1 = 0, num1 = 0;
+            std::string target1;
+            parseExitKey(exit1.name, floor1, num1, target1);
+
+            // Must have a teleport target to be a source
+            if (target1.empty()) continue;
+
+            // Calculate next floor toward F1
+            int nextFloor = (floor1 > 0) ? floor1 - 1 : (floor1 < 0 ? floor1 + 1 : 0);
+
+            // Check if exit2 is on the target floor with same assembly number
+            if (exit2.floorId != nextFloor) continue;
+
+            int floor2 = 0, num2 = 0;
+            std::string target2;
+            parseExitKey(exit2.name, floor2, num2, target2);
+
+            if (num1 == num2) {
+                matrix_[i][j] = 1;  // Teleportation edge with minimal weight
+            }
+        }
+    }
+}
+
+// Helper to parse exit key like "-1-1-F1" or "0-2-F2"
+void NavGrid::parseExitKey(const std::string& name, int& floor, int& assemblyNum, std::string& teleportTarget) {
+    floor = 0;
+    assemblyNum = 0;
+    teleportTarget.clear();
+    if (name.empty()) return;
+
+    std::vector<std::string> parts;
+    std::stringstream ss(name);
+    std::string item;
+    while (std::getline(ss, item, '-')) {
+        parts.push_back(item);
+    }
+
+    if (parts.size() >= 2) {
+        floor = std::atoi(parts[0].c_str());
+        assemblyNum = std::atoi(parts[1].c_str());
+        if (parts.size() >= 3) {
+            teleportTarget = parts[2];
+        }
+    } else {
+        // Single number format
+        assemblyNum = std::atoi(name.c_str());
     }
 }
 

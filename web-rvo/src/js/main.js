@@ -443,6 +443,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           selectMethod: [], // 选择的出口方案 
           selectMethodALL: [], // 所有可选出口方案 
           selectMethodALLResult: [], // 模拟结果
+          selectMethodTotalNums: 0, // 全楼不同编号集合点总数
           selectMethodDetail: [],
           selectM: '',  //最终选择的方案
 
@@ -1028,9 +1029,23 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
               this.peos[i].attr.id = i + 1;
               this.peos[i].rid = i+ 1;
             }
-            // 集合点编号统一
+            // 集合点编号统一 - 兼容新旧格式
             for(let i = 0; i < this.exits.length; i++){
-              this.exits[i].id = i+1;
+              const existingId = this.exits[i].id;
+              const isNewFormat = String(existingId).includes('-');
+              if (isNewFormat) {
+                const parsed = this.parseExitId(existingId);
+                this.exits[i].teleportTarget = parsed.teleportTarget;
+              } else {
+                const floorId = Number(this.exits[i].floorId) || 0;
+                const num = Number(existingId) || (i + 1);
+                let teleportTarget = '';
+                if (floorId !== 0) {
+                  teleportTarget = String(num);
+                }
+                this.exits[i].id = `${floorId}-${num}-${teleportTarget}`;
+                this.exits[i].teleportTarget = teleportTarget;
+              }
               this.exits[i].x2 = Math.max(this.exits[i].x0,this.exits[i].x2);
               this.exits[i].x0 = Math.min(this.exits[i].x0,this.exits[i].x2);
               this.exits[i].y2 = Math.max(this.exits[i].y0,this.exits[i].y2);
@@ -1307,6 +1322,27 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
         if (Number.isNaN(n)) return 'F1';
         if (n >= 0) return `F${n + 1}`;
         return `B${Math.abs(n)}`;
+      },
+      parseExitId(exitId){
+        if (!exitId || typeof exitId !== 'string') {
+          return { floor: 0, num: Number(exitId) || 1, teleportTarget: '' };
+        }
+        const parts = exitId.split('-');
+        if (parts.length < 2) {
+          return { floor: 0, num: Number(exitId) || 1, teleportTarget: '' };
+        }
+        return {
+          floor: Number(parts[0]) || 0,
+          num: Number(parts[1]) || 1,
+          teleportTarget: parts[2] || ''
+        };
+      },
+      getExitDisplayId(exit){
+        const parsed = this.parseExitId(exit.id);
+        if (parsed.teleportTarget) {
+          return `${parsed.num}→${parsed.teleportTarget}`;
+        }
+        return String(parsed.num);
       },
       sortFloorIds(ids){
         return Array.from(new Set((ids || []).map((v) => Number(v)).filter((v) => !Number.isNaN(v)))).sort((a, b) => a - b);
@@ -4414,6 +4450,12 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           // 用于数字排序的方法
           return Number(a) - Number(b);
         },
+        formatAssemblyMethod(method){
+          if(method === null || method === undefined) return '';
+          const s = String(method).trim();
+          if(!s) return '';
+          return `集合点 ${s}`;
+        },
         initShow_18(){  
             if(!this.exits || this.exits.length === 0){
               this.$notify({
@@ -4442,15 +4484,21 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
             return;
           }
           var url = restweburl + 'getExitMethods';
+          const allFloors = (this.floor2D && this.floor2D.initialized) ? this.getAllFloorsSnapshot() : {
+            rooms: this.rooms,
+            peos: this.peos,
+            exits: this.exits,
+            pointsNav: this.pointsNav
+          };
           axios({
               url: url,
               method: "post",
               data:{
                 bID:this.$route.params.bID,
-                exit:this.init_exit(),
-                navPos:this.init_navs(),
-                rooms:this.init_rooms(),
-                peos:this.init_poes(),
+                exit:this.init_exit(allFloors.exits),
+                navPos:this.init_navs(allFloors.pointsNav),
+                rooms:this.init_rooms(allFloors.rooms),
+                peos:this.init_poes(allFloors.peos),
                 connectors:this.init_connectors(),
                 weight:this.simulateConfig[0].weight,
                 numMax:this.simulateConfig[2].weight,
@@ -4466,6 +4514,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
               this.selectMethodALL = res.data.data.ExitMethods;
               this.selectMethodALL_1 = this.selectMethodALL;
               this.selectMethodDetail = [];
+              this.selectMethodTotalNums = Number(res.data.data.totalAssemblyNums || 0);
               
             }
             else{
@@ -6609,14 +6658,30 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
         /**出口类 */
         //新建出口
         if(this.TID==7){
-            this.exits.push({x0: offsetX, y0: offsetY,x1: offsetX, y1: offsetY,
-                x2: offsetX, y2: offsetY,x3: offsetX, y3: offsetY,id:this.exits.length+1,name:'新建集合点'+(this.exits.length+1),
-                color:'rgba(255, 255, 255, 1)',peoNum:10000,
-                floorId: Number(this.floor2D && this.floor2D.current != null ? this.floor2D.current : 0)});
-            if (this.exits.length > 1){
-              this.exits[this.exits.length-1].id = this.exits[this.exits.length-2].id + 1;
-              this.exits[this.exits.length-1].name = '新建集合点'+ this.exits[this.exits.length-1].id;
+            const currentFloor = Number(this.floor2D && this.floor2D.current != null ? this.floor2D.current : 0);
+            const exitNum = this.exits.length + 1;
+            let teleportTarget = '';
+            if (currentFloor !== 0) {
+                let targetFloor;
+                if (currentFloor < 0) {
+                    targetFloor = currentFloor + 1;
+                } else {
+                    targetFloor = currentFloor - 1;
+                }
+                const targetFloorExits = this.floor2D?.store?.[targetFloor]?.exits || [];
+                const hasTargetExit = targetFloorExits.some(e => {
+                    const parsed = this.parseExitId(e.id);
+                    return parsed.num === exitNum;
+                });
+                if (hasTargetExit) {
+                    teleportTarget = String(exitNum);
+                }
             }
+            const exitId = `${currentFloor}-${exitNum}-${teleportTarget}`;
+            this.exits.push({x0: offsetX, y0: offsetY,x1: offsetX, y1: offsetY,
+                x2: offsetX, y2: offsetY,x3: offsetX, y3: offsetY,id:exitId,name:'新建集合点'+exitNum,
+                color:'rgba(255, 255, 255, 1)',peoNum:10000,
+                floorId: currentFloor, teleportTarget: teleportTarget});
             this.exits[this.exits.length-1].x2 = Math.max(this.exits[this.exits.length-1].x0,this.exits[this.exits.length-1].x2);
             this.exits[this.exits.length-1].x0 = Math.min(this.exits[this.exits.length-1].x0,this.exits[this.exits.length-1].x2);
             this.exits[this.exits.length-1].y2 = Math.max(this.exits[this.exits.length-1].y0,this.exits[this.exits.length-1].y2);
@@ -8564,7 +8629,7 @@ if(this.TID==31||this.TID==29){
             const exitCenterY = (this.exits[i].y0 + this.exits[i].y3) / 2;
             const exitFontSize = this.viewInfo.fontSize || 20;
             if (this.viewInfo.isViewExportId) {
-              const idText = `${this.exits[i].id}#`;
+              const idText = `${this.getExitDisplayId(this.exits[i])}#`;
               this.drawCenteredLabel(idText, exitCenterX, exitCenterY - 10, `bold ${exitFontSize}px Arial`);
             }
             if (this.viewInfo.isViewExportName && this.exits[i].name) {

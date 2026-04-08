@@ -414,15 +414,18 @@
       <el-dialog
       title="已选出口"
       :visible.sync="dialogVisible_attr_5"
-      width="1240px"
+      width="900px"
       :append-to-body="true"
       >
       <div>
+        <div style="margin: 6px 0 10px 0;">
+          全楼不同集合点数量：{{ selectMethodTotalNums }}
+        </div>
         <el-table
         class="dialog-scrollable"
         :data="selectMethodDetail"
         border
-        style="width: 1230px;"
+        style="width: 100%;"
         :height="270"
         :header-cell-style="{ 'text-align': 'center' }"
         :cell-style="{ 'text-align': 'center' }"
@@ -434,26 +437,21 @@
               ></el-table-column>
               <el-table-column
                 prop="method"
-                label="出口方案"
-                width="180"
+                label="集合点方案"
+                width="220"
                 size="20px">
+                <template slot-scope="scope">
+                  {{ formatAssemblyMethod(scope.row.method) }}
+                </template>
               </el-table-column>  
               <el-table-column
                 prop="number"
                 label="出口个数"
-                width="180"
+                width="150"
                 sortable
                 :sort-method="(a,b)=>{return a.number - b.number}"
                 size="12px">
               </el-table-column>   
-              <el-table-column
-                prop="time"
-                label="平均时间/s"
-                width="180"
-                sortable
-                :sort-method="(a,b)=>{return a.time - b.time}"
-                size="20px">
-              </el-table-column>
               <el-table-column
                 prop="peo"
                 label="平均出口人数/人"
@@ -477,7 +475,7 @@
         class="dialog-scrollable"
         :data="selectMethodALL_1"
         border
-        style="width: 1230px;"
+        style="width: 100%;"
         :height="400"
         :header-cell-style="{ 'text-align': 'center' }"
         :cell-style="{ 'text-align': 'center' }"
@@ -490,26 +488,21 @@
               ></el-table-column>
               <el-table-column
                 prop="method"
-                label="出口方案"
-                width="180"
+                label="集合点方案"
+                width="220"
                 size="18px">
+                <template slot-scope="scope">
+                  {{ formatAssemblyMethod(scope.row.method) }}
+                </template>
               </el-table-column>  
               <el-table-column
                 prop="number"
                 label="出口个数"
-                width="180"
+                width="150"
                 sortable
                 :sort-method="(a,b)=>{return a.number - b.number}"
                 size="10px">
               </el-table-column>   
-              <el-table-column
-                prop="time"
-                label="平均时间/s"
-                width="180"
-                sortable
-                :sort-method="(a,b)=>{return a.time - b.time}"
-                size="18px">
-              </el-table-column>
               <el-table-column
                 prop="peo"
                 label="平均出口人数/人"
@@ -554,9 +547,12 @@
         ></el-table-column>
         <el-table-column
           prop="method"
-          label="出口方案"
-          width="180"
+          label="集合点方案"
+          width="220"
           size="18px">
+          <template slot-scope="scope">
+            {{ formatAssemblyMethod(scope.row.method) }}
+          </template>
         </el-table-column>
         <el-table-column
         prop="number"

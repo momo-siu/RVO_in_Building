@@ -216,17 +216,21 @@ public class RvoServerC implements RvoServer {
             input.obstacles.add(nativeObstacle);
         }
 
+        int exitIndex = 0;
         for (Exit exit : exits) {
             NativeSimulationInput.NativeExit nativeExit = new NativeSimulationInput.NativeExit();
-            nativeExit.id = exit.getId();
+            nativeExit.id = exitIndex;
             nativeExit.x0 = exit.getLt().getX();
             nativeExit.y0 = exit.getLt().getY();
             nativeExit.x1 = exit.getRd().getX();
             nativeExit.y1 = exit.getRd().getY();
             nativeExit.floorId = exit.getLt() != null ? exit.getLt().getFloorId() : 0;
             nativeExit.capacity = exit.getNumOfPerson();
-            nativeExit.name = exit.getExitName();
+            String key = exit.getExitKey();
+            nativeExit.name = (key != null && !key.isEmpty()) ? key
+                    : (exit.getExitName() != null ? exit.getExitName() : "");
             input.exits.add(nativeExit);
+            exitIndex++;
         }
 
         for (Pos navPoint : navPoints) {

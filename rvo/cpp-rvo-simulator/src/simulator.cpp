@@ -4,9 +4,13 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <iomanip>
 #include <filesystem>
 #include <numeric>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include "json.hpp"
 
@@ -17,7 +21,41 @@ namespace {
     constexpr double kNeighborRadius = 1.5;     // 分离作用半径
     constexpr double kSeparationStrength = 1.0; // 分离系数
     constexpr double kEpsilon = 1e-6;
-}
+
+    int nextFloorTowardF1(int floorId) {
+        if (floorId > 0) {
+            return floorId - 1;
+        }
+        if (floorId < 0) {
+            return floorId + 1;
+        }
+        return 0;
+    }
+
+    void parseExitKeyName(const std::string& name, int& outFloorKey, int& outAssemblyNum, std::string& outTeleport) {
+        outFloorKey = 0;
+        outAssemblyNum = 0;
+        outTeleport.clear();
+        if (name.empty()) {
+            return;
+        }
+        std::vector<std::string> parts;
+        std::stringstream ss(name);
+        std::string item;
+        while (std::getline(ss, item, '-')) {
+            parts.push_back(item);
+        }
+        if (parts.size() >= 2) {
+            outFloorKey = std::atoi(parts[0].c_str());
+            outAssemblyNum = std::atoi(parts[1].c_str());
+            if (parts.size() >= 3) {
+                outTeleport = parts[2];
+            }
+        } else {
+            outAssemblyNum = std::atoi(name.c_str());
+        }
+    }
+} // namespace
 
 namespace rvocpp {
 
@@ -302,6 +340,7 @@ bool RVOSimulator::rebuildNavigationState() {
             ex.cy = (e.y0 + e.y1) * 0.5;
             ex.id = static_cast<int>(e.id);
             ex.floorId = e.floorId;
+            ex.name = e.name;  // Copy exitKey for teleportation parsing
             exitsC.push_back(ex);
         }
 
@@ -698,8 +737,20 @@ void RVOSimulator::updateCompletedAgents() {
             dy = target.second - active.y;
             distSq = dx * dx + dy * dy;
             if (distSq <= goalThreshold_ * goalThreshold_) {
-                const int exitFloor = getExitFloor(agents_[agentIndex].exitId);
-                if (exitFloor == agents_[agentIndex].floorId) {
+                const int eid = agents_[agentIndex].exitId;
+                if (eid < 0 || eid >= static_cast<int>(exits_.size())) {
+                    continue;
+                }
+                const Exit& curEx = exits_[static_cast<size_t>(eid)];
+                if (curEx.floorId != agents_[agentIndex].floorId) {
+                    continue;
+                }
+                int floorKey = 0;
+                int assemblyNum = 0;
+                std::string teleport;
+                parseExitKeyName(curEx.name, floorKey, assemblyNum, teleport);
+
+                if (agents_[agentIndex].floorId == 0) {
                     agentCompleted_[agentIndex] = true;
                     anyRemoval = true;
 
@@ -709,6 +760,80 @@ void RVOSimulator::updateCompletedAgents() {
                     event.frameIndex = currentStep_;
                     event.time = static_cast<double>(currentStep_) * kTimeStep;
                     completedEvents_.push_back(event);
+                    continue;
+                }
+
+                if (teleport.empty()) {
+                    int alt = -1;
+                    for (int i = 0; i < static_cast<int>(exits_.size()); ++i) {
+                        if (i == eid) {
+                            continue;
+                        }
+                        if (exits_[static_cast<size_t>(i)].floorId != agents_[agentIndex].floorId) {
+                            continue;
+                        }
+                        int fk = 0;
+                        int an = 0;
+                        std::string t2;
+                        parseExitKeyName(exits_[static_cast<size_t>(i)].name, fk, an, t2);
+                        if (!t2.empty()) {
+                            alt = i;
+                            break;
+                        }
+                    }
+                    if (alt >= 0 && navGrid_) {
+                        agents_[agentIndex].exitId = alt;
+                        agentGoals_[agentIndex] = getExitCenter(alt);
+                        agents_[agentIndex].waypointXs.clear();
+                        agents_[agentIndex].waypointYs.clear();
+                        agents_[agentIndex].waypointCursor = 0;
+                        const int gv = navGrid_->findClosestGraphVertex(active.x, active.y, true);
+                        agents_[agentIndex].graphNodeIndex = gv;
+                        const auto coords = navGrid_->getWaypointCoordinates(alt, gv);
+                        for (const auto& p : coords) {
+                            agents_[agentIndex].waypointXs.push_back(p.first);
+                            agents_[agentIndex].waypointYs.push_back(p.second);
+                        }
+                    }
+                    continue;
+                }
+
+                const int nf = nextFloorTowardF1(agents_[agentIndex].floorId);
+                int targetExit = -1;
+                for (int i = 0; i < static_cast<int>(exits_.size()); ++i) {
+                    if (exits_[static_cast<size_t>(i)].floorId != nf) {
+                        continue;
+                    }
+                    int fk = 0;
+                    int an = 0;
+                    std::string t2;
+                    parseExitKeyName(exits_[static_cast<size_t>(i)].name, fk, an, t2);
+                    if (an == assemblyNum) {
+                        targetExit = i;
+                        break;
+                    }
+                }
+                if (targetExit < 0 || !navGrid_) {
+                    continue;
+                }
+                const auto g = getExitCenter(targetExit);
+                agents_[agentIndex].floorId = nf;
+                agents_[agentIndex].exitId = targetExit;
+                agents_[agentIndex].x = g.first;
+                agents_[agentIndex].y = g.second;
+                active.x = g.first;
+                active.y = g.second;
+                active.floorId = nf;
+                agentGoals_[agentIndex] = getExitCenter(targetExit);
+                agents_[agentIndex].waypointXs.clear();
+                agents_[agentIndex].waypointYs.clear();
+                agents_[agentIndex].waypointCursor = 0;
+                const int gv2 = navGrid_->findClosestGraphVertex(active.x, active.y, true);
+                agents_[agentIndex].graphNodeIndex = gv2;
+                const auto coords2 = navGrid_->getWaypointCoordinates(targetExit, gv2);
+                for (const auto& p : coords2) {
+                    agents_[agentIndex].waypointXs.push_back(p.first);
+                    agents_[agentIndex].waypointYs.push_back(p.second);
                 }
             }
         }

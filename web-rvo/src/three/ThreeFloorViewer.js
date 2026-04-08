@@ -5,7 +5,7 @@ export class ThreeFloorViewer {
   constructor(options = {}) {
     this.floorHeight = options.floorHeight || 150;
     this.wallHeight = options.wallHeight || 30;
-    this.wallThickness = options.wallThickness || 2;
+    this.wallThickness = options.wallThickness || 3;
     this.showFloorPlates = !!options.showFloorPlates;
     this.scene = null;
     this.camera = null;
