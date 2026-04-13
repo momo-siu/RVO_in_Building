@@ -17,8 +17,6 @@ public class Pos {
     public double y;
     public int state; // 是在房内还是房外0在房内，1在房外,3 表示无用
     public int floorId = 0; // 楼层编号，默认0层
-    public int kind = 0; // 0普通导航点，1楼梯入口，2电梯入口
-    public Integer connectorId = -1;
     public Integer toFloorId = 0;
     public ArrayList<Integer> room_id = new ArrayList<>(); // 所在房间的编号
     public ArrayList<Integer> gotList = new ArrayList<>(); // 已经走过的导航点

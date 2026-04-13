@@ -10,7 +10,6 @@ public class NativeSimulationInput {
     public List<NativeObstacle> obstacles = new ArrayList<>();
     public List<NativeExit> exits = new ArrayList<>();
     public List<NativeNavPoint> navPoints = new ArrayList<>();
-    public List<NativeConnector> connectors = new ArrayList<>();
     public List<NativeRoom> rooms = new ArrayList<>();
     public List<NativePeopleGroup> peopleGroups = new ArrayList<>();
 
@@ -18,7 +17,6 @@ public class NativeSimulationInput {
         public int bID;
         public double scale;
         public int status;
-        public int weight;
         public double k;
         public double imgX0;
         public double imgY0;
@@ -36,8 +34,6 @@ public class NativeSimulationInput {
         public int exitId;
         public int floorId = 0;
         public int targetFloorId = 0;
-        public int connectorId = -1;
-        public int connectorState = 0;
         public double transferRemainingTime = 0.0;
         public int graphNodeIndex = -1;
         public List<Integer> roomIds = new ArrayList<>();
@@ -70,23 +66,8 @@ public class NativeSimulationInput {
         public double y;
         public int state;
         public int floorId = 0;
-        public int kind = 0;
-        public int connectorId = -1;
         public int toFloorId = 0;
         public List<Integer> roomIds = new ArrayList<>();
-    }
-
-    public static class NativeConnector {
-        public int id;
-        public int type;
-        public int fromFloor;
-        public int toFloor;
-        public double entryX;
-        public double entryY;
-        public double exitX;
-        public double exitY;
-        public int capacity = 1;
-        public double serviceTime = 0.0;
     }
 
     public static class NativeRoom {

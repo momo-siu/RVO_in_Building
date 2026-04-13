@@ -18,8 +18,6 @@ public class Agent {
     private double radius=0.1;// 半径
     private Integer floorId = 0; // 当前楼层
     private Integer targetFloorId = 0; // 目标楼层
-    private Integer connectorId = -1; // 当前连接器
-    private Integer connectorState = 0; // 0步行，1连接器传输中
     private Double transferRemainingTime = 0.0;
     private ArrayList<Integer> gotList; // 已经经过的 waypoint（按 NavGrid vertexID 存储）
     private ArrayList<Double> waypointXs; // 预计算路径的 x 座标序列

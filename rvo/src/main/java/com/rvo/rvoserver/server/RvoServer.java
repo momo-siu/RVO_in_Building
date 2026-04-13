@@ -15,7 +15,7 @@ public interface RvoServer {
 
     public boolean isOK();
 
-    public void calculatePathWithNav(int bID, List<Agent> agents, List<Obstacle> obstacles, List<Exit> exits, List<Pos> navPoints, double scale, List<HashMap> rooms,List<HashMap> peosList, List<HashMap> connectors, int status ,int weight, double k, String file,NavGrid navGrid, List<Exit> exitsAll,double imgX0,double imgY0, double sT) throws IOException;
+    public void calculatePathWithNav(int bID, List<Agent> agents, List<Obstacle> obstacles, List<Exit> exits, List<Pos> navPoints, double scale, List<HashMap> rooms,List<HashMap> peosList, int status, double k, String file,NavGrid navGrid, List<Exit> exitsAll,double imgX0,double imgY0, double sT) throws IOException;
 
     public int getCnt();
 

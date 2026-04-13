@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <iomanip>
 #include <filesystem>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -799,6 +800,14 @@ void RVOSimulator::updateCompletedAgents() {
                 }
 
                 const int nf = nextFloorTowardF1(agents_[agentIndex].floorId);
+                int targetAssemblyNum = assemblyNum;
+                if (!teleport.empty()) {
+                    try {
+                        targetAssemblyNum = std::stoi(teleport);
+                    } catch (...) {
+                        targetAssemblyNum = assemblyNum;
+                    }
+                }
                 int targetExit = -1;
                 for (int i = 0; i < static_cast<int>(exits_.size()); ++i) {
                     if (exits_[static_cast<size_t>(i)].floorId != nf) {
@@ -808,12 +817,77 @@ void RVOSimulator::updateCompletedAgents() {
                     int an = 0;
                     std::string t2;
                     parseExitKeyName(exits_[static_cast<size_t>(i)].name, fk, an, t2);
-                    if (an == assemblyNum) {
+                    if (an == targetAssemblyNum) {
                         targetExit = i;
                         break;
                     }
                 }
-                if (targetExit < 0 || !navGrid_) {
+                if (!navGrid_) {
+                    continue;
+                }
+                if (targetExit < 0) {
+                    int alt = -1;
+                    double bestD2 = std::numeric_limits<double>::infinity();
+                    for (int i = 0; i < static_cast<int>(exits_.size()); ++i) {
+                        if (i == agents_[agentIndex].exitId) {
+                            continue;
+                        }
+                        if (exits_[static_cast<size_t>(i)].floorId != agents_[agentIndex].floorId) {
+                            continue;
+                        }
+                        int fk2 = 0;
+                        int an2 = 0;
+                        std::string t3;
+                        parseExitKeyName(exits_[static_cast<size_t>(i)].name, fk2, an2, t3);
+                        if (t3.empty()) {
+                            continue;
+                        }
+                        int targetAn2 = an2;
+                        try {
+                            targetAn2 = std::stoi(t3);
+                        } catch (...) {
+                            targetAn2 = an2;
+                        }
+                        int targetExit2 = -1;
+                        for (int j = 0; j < static_cast<int>(exits_.size()); ++j) {
+                            if (exits_[static_cast<size_t>(j)].floorId != nf) {
+                                continue;
+                            }
+                            int fk3 = 0;
+                            int an3 = 0;
+                            std::string t4;
+                            parseExitKeyName(exits_[static_cast<size_t>(j)].name, fk3, an3, t4);
+                            if (an3 == targetAn2) {
+                                targetExit2 = j;
+                                break;
+                            }
+                        }
+                        if (targetExit2 < 0) {
+                            continue;
+                        }
+                        const auto eg = getExitCenter(i);
+                        const double dx = eg.first - active.x;
+                        const double dy = eg.second - active.y;
+                        const double d2 = dx * dx + dy * dy;
+                        if (d2 < bestD2) {
+                            bestD2 = d2;
+                            alt = i;
+                        }
+                    }
+                    if (alt >= 0) {
+                        agents_[agentIndex].exitId = alt;
+                        agentGoals_[agentIndex] = getExitCenter(alt);
+                        agents_[agentIndex].waypointXs.clear();
+                        agents_[agentIndex].waypointYs.clear();
+                        agents_[agentIndex].waypointCursor = 0;
+                        const int gv = navGrid_->findClosestGraphVertex(active.x, active.y, true);
+                        agents_[agentIndex].graphNodeIndex = gv;
+                        const auto coords = navGrid_->getWaypointCoordinates(alt, gv);
+                        for (const auto& p : coords) {
+                            agents_[agentIndex].waypointXs.push_back(p.first);
+                            agents_[agentIndex].waypointYs.push_back(p.second);
+                        }
+                    }
                     continue;
                 }
                 const auto g = getExitCenter(targetExit);
@@ -1064,4 +1138,3 @@ bool RVOSimulator::writeRawSimulationJson(const std::string& outputDir) const {
 }
 
 } // namespace rvocpp
-
