@@ -70,7 +70,7 @@ namespace rvocpp {
     struct SimulationConfig {
         int bID;
         double scale;
-        int status;  // 1=时间优先, 2=剂量优先, 3=个人剂量最小
+        int status;  // 模拟模式
         int weight;
         double k;
         double imgX0, imgY0, sT;
@@ -168,8 +168,6 @@ namespace rvocpp {
 
         std::vector<FrameData> frames_;
         std::vector<std::vector<std::map<std::string, int>>> heatMapData_;
-        std::vector<double> grdResults_;
-        std::vector<double> personGrd_;
         std::vector<CompletedEvent> completedEvents_;
 
         // 辅助方法

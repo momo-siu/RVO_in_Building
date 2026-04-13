@@ -10,7 +10,7 @@ import java.util.ArrayList;
 public class JavaPythonCaller {
 
     public static void runPython(String projectPath, String file, String venvPath, int bID) {
-        Path projectDir = Paths.get(projectPath, "rvo", "source", String.valueOf(bID), file);
+        Path projectDir = Paths.get(projectPath, String.valueOf(bID), file);
         File file1 = projectDir.toFile();
         if (!file1.exists()){
             file1.mkdirs();

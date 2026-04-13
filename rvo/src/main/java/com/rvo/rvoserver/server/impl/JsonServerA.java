@@ -45,7 +45,7 @@ public class JsonServerA implements JsonServer {
             }
         }
         // 构建路径
-        Path path = Paths.get(basePath, "rvo", "source", String.valueOf(bID));
+        Path path = Paths.get(basePath, String.valueOf(bID));
         for (String child : validChildren) {
             path = path.resolve(child);
         }

@@ -31,12 +31,10 @@ public class BlueprintServerB implements BlueprintServer {
     private String projectPath;
 
     private Path resolveSourcePath(int bID, String... children) {
-        String[] segments = new String[children.length + 3];
-        segments[0] = "rvo";
-        segments[1] = "source";
-        segments[2] = String.valueOf(bID);
+        String[] segments = new String[children.length + 1];
+        segments[0] = String.valueOf(bID);
         if (children.length > 0) {
-            System.arraycopy(children, 0, segments, 3, children.length);
+            System.arraycopy(children, 0, segments, 1, children.length);
         }
         return Paths.get(projectPath, segments);
     }
@@ -102,35 +100,37 @@ public class BlueprintServerB implements BlueprintServer {
     @Override
     public Map<String, Object> getBlueprint(int bID) {
         Blueprint blueprint = blueprintMapper.getBlueprint(bID);
-//        List<Record> records = blueprintMapper.getRecords(bID);
+        // List<Record> records = blueprintMapper.getRecords(bID);
         Map<String, Object> res = new HashMap<>();
-        if(blueprint == null) {
-            return null; }
-//        res.put("background", blueprint.getBackground());
-//        res.put("name", blueprint.getBName());
-//        res.put("width", blueprint.getWidth());
-//        res.put("height", blueprint.getHeight());
-//        res.put("blueprintJson", records.get(0).getBlueprintJson());
-        if(blueprint.getBlueprintJson() == null) {
-//            res.put("navPos", new ArrayList<>());
-//            res.put("agentPos", new ArrayList<>());
-//            res.put("wallArr", new ArrayList<>());
-//            res.put("exit", new ArrayList<>());
-//            res.put("rooms", new ArrayList<>());
+        if (blueprint == null) {
+            return null;
+        }
+        // res.put("background", blueprint.getBackground());
+        // res.put("name", blueprint.getBName());
+        // res.put("width", blueprint.getWidth());
+        // res.put("height", blueprint.getHeight());
+        // res.put("blueprintJson", records.get(0).getBlueprintJson());
+        if (blueprint.getBlueprintJson() == null) {
+            // res.put("navPos", new ArrayList<>());
+            // res.put("agentPos", new ArrayList<>());
+            // res.put("wallArr", new ArrayList<>());
+            // res.put("exit", new ArrayList<>());
+            // res.put("rooms", new ArrayList<>());
             return null;
         }
 
-        //解析json
+        // 解析json
         Gson gson = new Gson();
-        Type type = new TypeToken<Map<String, Object>>() {}.getType();
+        Type type = new TypeToken<Map<String, Object>>() {
+        }.getType();
         Map<String, Object> map = gson.fromJson(blueprint.getBlueprintJson(), type);
 
-        if(map == null) {
-//            res.put("navPos", new ArrayList<>());
-//            res.put("agentPos", new ArrayList<>());
-//            res.put("wallArr", new ArrayList<>());
-//            res.put("exit", new ArrayList<>());
-//            res.put("rooms", new ArrayList<>());
+        if (map == null) {
+            // res.put("navPos", new ArrayList<>());
+            // res.put("agentPos", new ArrayList<>());
+            // res.put("wallArr", new ArrayList<>());
+            // res.put("exit", new ArrayList<>());
+            // res.put("rooms", new ArrayList<>());
             return null;
         }
 
@@ -141,7 +141,7 @@ public class BlueprintServerB implements BlueprintServer {
     @Override
     public int saveBlueprint(int bID, String json) {
         blueprintMapper.saveRecord(bID, json);
-        //更新时间
+        // 更新时间
         blueprintMapper.updateTime(bID);
         return 0;
     }
@@ -164,7 +164,9 @@ public class BlueprintServerB implements BlueprintServer {
     @Override
     public Map<String, Object> getSize(int bID) {
         Blueprint blueprint = blueprintMapper.getBlueprint(bID);
-        if(blueprint == null) { return null; }
+        if (blueprint == null) {
+            return null;
+        }
         Map<String, Object> res = new HashMap<>();
         res.put("height", blueprint.getHeight());
         res.put("width", blueprint.getWidth());
@@ -174,16 +176,20 @@ public class BlueprintServerB implements BlueprintServer {
     @Override
     public String getBackground(int bID) {
         Blueprint blueprint = blueprintMapper.getBlueprint(bID);
-        if(blueprint == null) { return null; }
+        if (blueprint == null) {
+            return null;
+        }
         return blueprint.getBackground();
     }
 
     @Override
     public void saveBlueprintToFile(int bID, String json) throws IOException {
         Blueprint blueprint = blueprintMapper.getBlueprint(bID);
-        System.out.println(projectPath + "/rvo/source/" + blueprint.getBlueprintID() + "/frame.json");
-        File frameFile = new File(projectPath + "/rvo/source/" + blueprint.getBlueprintID() + "/frame.json");
-        if(!frameFile.exists()) { frameFile.createNewFile(); }
+        System.out.println(projectPath + "/" + blueprint.getBlueprintID() + "/frame.json");
+        File frameFile = new File(projectPath + "/" + blueprint.getBlueprintID() + "/frame.json");
+        if (!frameFile.exists()) {
+            frameFile.createNewFile();
+        }
         ObjectOutputStream dos = new ObjectOutputStream(new FileOutputStream(frameFile));
         dos.writeObject(json);
         dos.close();
@@ -227,17 +233,20 @@ public class BlueprintServerB implements BlueprintServer {
 
     @Override
     public Map<String, Object> exit(int bID) {
-        File file = new File(projectPath + "/rvo/source/" + bID + "/frame.json");
-        if(!file.exists()) { return null; }
+        File file = new File(projectPath + "/" + bID + "/frame.json");
+        if (!file.exists()) {
+            return null;
+        }
         try {
             ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file));
             String json = (String) ois.readObject();
             ois.close();
             Gson gson = new Gson();
-            //解析json
-            Type type = new TypeToken<Map<String, Object>>() {}.getType();
+            // 解析json
+            Type type = new TypeToken<Map<String, Object>>() {
+            }.getType();
             Map<String, Object> map = gson.fromJson(json, type);
-            List<Map<String, Object>> exitList = (List<Map<String,Object>>) map.get("exit");
+            List<Map<String, Object>> exitList = (List<Map<String, Object>>) map.get("exit");
             List<Map<String, Object>> exit = new ArrayList<>();
             for (Map<String, Object> e : exitList) {
                 Map<String, Object> m = new HashMap<>();
@@ -245,9 +254,11 @@ public class BlueprintServerB implements BlueprintServer {
                 m.put("exitName", e.get("name"));
                 exit.add(m);
             }
-            return new HashMap<String, Object>() {{
-                put("exit", exit);
-            }};
+            return new HashMap<String, Object>() {
+                {
+                    put("exit", exit);
+                }
+            };
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
@@ -256,36 +267,39 @@ public class BlueprintServerB implements BlueprintServer {
 
     @Override
     public Map<String, Object> exitData(int bID) {
-        //读取出口统计文件
+        // 读取出口统计文件
         File file = resolveSourcePath(bID, "exitStatistic.txt").toFile();
-        if(!file.exists()) { return null; }
+        if (!file.exists()) {
+            return null;
+        }
         List<Map<String, Object>> exitData = new ArrayList<>();
 
         Map<Integer, List<Integer>> tmp = new HashMap<>();
-        Map<Integer, List<Double>> tgrd = new HashMap<>();
         Map<Integer, String> name = new HashMap<>();
         try {
             BufferedReader br = new BufferedReader(new FileReader(file));
             String s = br.readLine();
             String line;
-            while((line = br.readLine()) != null) {
+            while ((line = br.readLine()) != null) {
                 Scanner sc = new Scanner(line);
                 int aID = sc.nextInt();
                 int eID = sc.nextInt();
                 int time = sc.nextInt();
-                double grd = sc.nextDouble();
+                double placeholderValue = sc.nextDouble();
                 String exitName = "";
                 try {
                     exitName = sc.next();
-                }catch (NoSuchElementException e){
+                } catch (NoSuchElementException e) {
                     exitName = "";
                 }
-                if(tmp.containsKey(eID)) {
+                if (tmp.containsKey(eID)) {
                     tmp.get(eID).add(time);
-                    tgrd.get(eID).add(grd);
                 } else {
-                    tmp.put(eID, new ArrayList<Integer>(){{ add(time); }});
-                    tgrd.put(eID, new ArrayList<Double>(){{ add(grd); }});
+                    tmp.put(eID, new ArrayList<Integer>() {
+                        {
+                            add(time);
+                        }
+                    });
                     name.put(eID, exitName);
                 }
             }
@@ -297,43 +311,42 @@ public class BlueprintServerB implements BlueprintServer {
             Map<String, Object> m = new HashMap<>();
             m.put("exitId", entry.getKey());
             m.put("exitName", name.get(entry.getKey()));
-            if (entry.getValue().size() == 1 && entry.getValue().get(0) == -1){
+            if (entry.getValue().size() == 1 && entry.getValue().get(0) == -1) {
                 m.put("exitTime", new ArrayList<>(0));
-            }else {
+            } else {
                 m.put("exitTime", entry.getValue());
             }
-            if (tgrd.get(entry.getKey()).size() == 1 && tgrd.get(entry.getKey()).get(0) == -1){
-                m.put("grd",new ArrayList<>(0));
-            }else {
-                m.put("grd",tgrd.get(entry.getKey()));
-            }
-
             exitData.add(m);
         }
-        return new HashMap<String, Object>() {{
-            put("exitData", exitData);
-        }};
+        return new HashMap<String, Object>() {
+            {
+                put("exitData", exitData);
+            }
+        };
     }
 
     @Override
     public Map<String, Object> projects() {
         List<Blueprint> blueprints = blueprintMapper.listBlueprint();
         List<Map<String, Object>> projectList = new ArrayList<>();
-        for(Blueprint blueprint : blueprints) {
+        for (Blueprint blueprint : blueprints) {
             Map<String, Object> m = new HashMap<>();
             m.put("projectId", blueprint.getBlueprintID());
             m.put("projectName", blueprint.getBName());
             Map<String, Object> exit = exit(blueprint.getBlueprintID());
-            if(exit == null) {
+            if (exit == null) {
                 m.put("exitlist", new ArrayList<>());
                 projectList.add(m);
-                continue; }
+                continue;
+            }
             m.put("exitlist", exit.get("exit"));
             projectList.add(m);
         }
-        return new HashMap<String, Object>() {{
-            put("projectList", projectList);
-        }};
+        return new HashMap<String, Object>() {
+            {
+                put("projectList", projectList);
+            }
+        };
     }
 
     public void copyDirectory(File sourceLocation, File targetLocation) throws IOException {
@@ -363,14 +376,16 @@ public class BlueprintServerB implements BlueprintServer {
 
     @Override
     public int copy(int bID) {
-        //将原项目信息复制到新项目
+        // 将原项目信息复制到新项目
         Blueprint blueprint = blueprintMapper.getBlueprint(bID);
-        if (blueprint == null) { return -1; }
+        if (blueprint == null) {
+            return -1;
+        }
         // 修改名字
         int i = 1;
         while (true) {
             Blueprint b = blueprintMapper.getBlueprintByName(blueprint.getBName() + "-副本" + (i == 1 ? "" : i));
-            if(b == null) {
+            if (b == null) {
                 break;
             }
             i++;
@@ -378,22 +393,25 @@ public class BlueprintServerB implements BlueprintServer {
         blueprint.setBName(blueprint.getBName() + "-副本");
         blueprintMapper.createBlueprint(blueprint);
         blueprintMapper.saveRecord(blueprint.getBlueprintID(), blueprint.getBlueprintJson());
-//        System.out.println(blueprint.getBlueprintJson());
-//        blueprintMapper.saveBackground(blueprint.getBlueprintID(), blueprint.getBackground());
-        //创建新目录，将原项目文件复制到新目录 - 修复路径，确保使用正确的rvo/source路径
-        File oldDir = new File(projectPath + "/rvo/source/" + bID);
-        File newDir = new File(projectPath + "/rvo/source/" + blueprint.getBlueprintID());
+        // System.out.println(blueprint.getBlueprintJson());
+        // blueprintMapper.saveBackground(blueprint.getBlueprintID(),
+        // blueprint.getBackground());
+        // 创建新目录，将原项目文件复制到新目录 - 修复路径，确保使用正确的rvo/source路径
+        File oldDir = new File(projectPath + "/" + bID);
+        File newDir = new File(projectPath + "/" + blueprint.getBlueprintID());
         try {
             copyDirectory(oldDir, newDir);
         } catch (IOException e) {
             e.printStackTrace();
         }
-        //获取原背景文件名
+        // 获取原背景文件名
         String[] split = blueprint.getBackground().split("/");
         String background = split[split.length - 1];
-        blueprintMapper.saveBackground(blueprint.getBlueprintID(), "source/" + blueprint.getBlueprintID() + "/" + background);
+        blueprintMapper.saveBackground(blueprint.getBlueprintID(),
+                "source/" + blueprint.getBlueprintID() + "/" + background);
         blueprintMapper.setSize(blueprint.getBlueprintID(), blueprint.getWidth(), blueprint.getHeight());
-        blueprintMapper.saveScope(blueprint.getBlueprintID(), blueprint.getX0(), blueprint.getY0(), blueprint.getX1(), blueprint.getY1());
+        blueprintMapper.saveScope(blueprint.getBlueprintID(), blueprint.getX0(), blueprint.getY0(), blueprint.getX1(),
+                blueprint.getY1());
         blueprintMapper.setSchedule(blueprint.getBlueprintID(), blueprint.getSchedule());
         blueprintMapper.setDuration(blueprint.getBlueprintID(), blueprint.getDuration());
         blueprintMapper.setLastPeople(blueprint.getBlueprintID(), blueprint.getLastPeople());

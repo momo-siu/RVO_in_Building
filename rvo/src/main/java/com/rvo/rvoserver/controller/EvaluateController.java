@@ -147,7 +147,7 @@ public class EvaluateController {
         // System.out.println("模拟完成");
         // return Result.success();
         // }
-        Path errorDir = Paths.get(projectPath, "rvo", "source", String.valueOf(bID));
+        Path errorDir = Paths.get(projectPath, String.valueOf(bID));
         Files.createDirectories(errorDir);
         String Path1 = errorDir.resolve("error.log").toString();
 
@@ -182,8 +182,6 @@ public class EvaluateController {
             // 初始化所有元素为0
             int min_cnt = 3000; // 最小轮次
             int min_peos = -1; // 最多出口人数
-            double min_grd = Integer.MAX_VALUE; // 最小剂量
-            double min_pre_grd = Integer.MAX_VALUE; // 最小个人剂量
 
             // temp_id 现在是“编号集合”，如 "1,2,4"
             String[] ids = temp_id.split(",");
@@ -217,7 +215,7 @@ public class EvaluateController {
                 List<HashMap> rooms = (List<HashMap>) request.get("rooms");
                 List<HashMap> peosList = (List<HashMap>) request.get("peos");
 
-                int status = (Integer) (request.get("status")); // 模拟状态，1为路径优先，2为剂量优先
+                int status = (Integer) (request.get("status")); // 模拟模式
                 int kw = (Integer) (request.get("k")); // 模拟时长，0-10；0-20；0-30；0-40
                 double scale = ((Number) request.get("scale")).doubleValue();
                 if (exitLists.size() == 0) {
@@ -375,15 +373,7 @@ public class EvaluateController {
                 }
 
                 // 判断是否有误
-                Blueprint blueprint = blueprintMapper.getBlueprint(bID);
-                GRD grd = new GRD(blueprint.getWidth(), blueprint.getHeight(), 0, 0);
-                grd.setScope(blueprint.getX0(), blueprint.getY0(), blueprint.getX1(), blueprint.getY1());
-                // GRD 已废除：总是使用零剂量占位网格
-                int gx = 128, gy = 128;
-                grd.setX(gx);
-                grd.setY(gy);
-                grd.setValue(new double[gx][gy]);
-                NavGrid navGrid = new NavGrid(bID, points, obstacles, exits, rooms, peosList, grd, status, projectPath,
+                NavGrid navGrid = new NavGrid(bID, points, obstacles, exits, rooms, peosList, status, projectPath,
                         venvPath, false, file);
                 navGrid.generateLines();
                 if (!navGrid.isReached()) {
@@ -417,7 +407,7 @@ public class EvaluateController {
                 // }
 
                 // 读取模型结果
-                String filePath = projectPath + "/rvo/source/" + bID + "/" + file + "/output.json";
+                String filePath = projectPath + "/" + bID + "/" + file + "/output.json";
                 // 读取文件内容
                 String content = "";
                 try {
@@ -717,12 +707,13 @@ public class EvaluateController {
             // }
             // }
             // 重命名为1
-            File file = new File(projectPath + "/rvo/source/" + bID + "/" + temp_id + "/0");
-            File file1 = new File(projectPath + "/rvo/source/" + bID + "/" + temp_id + "/1");
-            // 先删除1
-            try {
-                deleteFolder(Paths.get(projectPath + "/rvo/source/" + bID + "/" + temp_id + "/1"));
-            } catch (NoSuchFileException e) {
+            File file = new File(projectPath + "/" + bID + "/" + temp_id + "/0");
+            File file1 = new File(projectPath + "/" + bID + "/" + temp_id + "/1");
+            if (file.exists()) {
+                try {
+                    deleteFolder(Paths.get(projectPath + "/" + bID + "/" + temp_id + "/1"));
+                } catch (IOException e) {
+                }
             }
 
             file.renameTo(file1); // 重命名
@@ -742,15 +733,15 @@ public class EvaluateController {
         }
         evaluateServer.setSchedule(bID, 600);
         // 保存项目
-        Path sourcePath = Paths.get(projectPath + "/rvo/source/" + bID + "/" + min_Time + "/1");
-        Path targetPath = Paths.get(projectPath + "/rvo/source/" + bID + "/1");
+        Path sourcePath = Paths.get(projectPath + "/" + bID + "/" + min_Time + "/1");
+        Path targetPath = Paths.get(projectPath + "/" + bID + "/1");
         try {
             copyDirectory(sourcePath, targetPath);
         } catch (IOException e) {
             e.printStackTrace();
             return Result.error("文件读取失败");
         }
-        targetPath = Paths.get(projectPath + "/rvo/source/" + bID);
+        targetPath = Paths.get(projectPath + "/" + bID);
         try {
             copyDirectory(sourcePath, targetPath);
         } catch (IOException e) {
@@ -790,18 +781,8 @@ public class EvaluateController {
 
         List<HashMap<String, Object>> ExitMethods = new ArrayList<>();
 
-        // 计算剂量
         int bID = Integer.parseInt((String) request.get("bID"));
-        Blueprint blueprint = blueprintMapper.getBlueprint(bID);
-        GRD grd = new GRD(blueprint.getWidth(), blueprint.getHeight(), 0, 1);
-        grd.setScope(blueprint.getX0(), blueprint.getY0(), blueprint.getX1(), blueprint.getY1());
-
-        // GRD 已废除：总是使用零剂量占位网格
-        int gx = 128, gy = 128;
-        grd.setX(gx);
-        grd.setY(gy);
-        grd.setValue(new double[gx][gy]);
-        // 构建候选出口点：满足剂量阈值且在该楼层可用（非F1必须有传送目标；F1放行）
+        // 构建候选出口点：在该楼层可用（非F1必须有传送目标；F1放行）
         List<Exit> candidateExits = new ArrayList<>();
         List<Integer> candidateNums = new ArrayList<>();
         Set<Integer> validF1Nums = new HashSet<>(); // 统计 F1 层可用的集合点编号
@@ -909,7 +890,7 @@ public class EvaluateController {
         }
 
         // 计算最短道路
-        NavGrid navGrid = new NavGrid(bID, points, obstacles, candidateExits, rooms, peosList, grd, 1, projectPath,
+        NavGrid navGrid = new NavGrid(bID, points, obstacles, candidateExits, rooms, peosList, 1, projectPath,
                 venvPath, true, "0");
         try {
             navGrid.generateLines();
@@ -1087,7 +1068,7 @@ public class EvaluateController {
         });
         System.out.println("出口方案生成成功");
         if (ExitMethods.size() == 0) {
-            return Result.error("在当前剂量阈值与楼层可用性约束下，没有任何编号组合能覆盖所有楼层人群，请调整参数或补充可传送集合点");
+            return Result.error("在当前楼层可用性约束下，没有任何编号组合能覆盖所有楼层人群，请调整参数或补充可传送集合点");
         }
         HashMap res = new HashMap();
         res.put("ExitMethods", ExitMethods);
@@ -1105,26 +1086,15 @@ public class EvaluateController {
         ArrayList<String> selectMethod = (ArrayList<String>) request.get("selectMethod");
         ArrayList<HashMap> msg = new ArrayList<>();
 
-        DecimalFormat df1 = new DecimalFormat("#.00000");
         for (String temp_id : selectMethod) {
-            // 记录时间优先方案的最小时间，最小剂量，最大个人剂量最小
-            // 记录最小时间，最小剂量，最大个人剂量最小
             HashMap result = new HashMap();
             String file = temp_id + "/1";
             String[] fruits = temp_id.split(",");
             Map<String, Object> res = evaluateServer.getExportStatistics(bID, 1, 1, file);
             int now_cnt = (Integer) res.get("totalTime");
-            // 剂量
-            res = evaluateServer.getGRD(bID, 1, file);
-            double now_grd = ((ArrayList<Double>) res.get("grd")).get(((ArrayList<Double>) res.get("grd")).size() - 1);
-            // 个人剂量
-            res = evaluateServer.getPerGRD(bID, 1, file);
-            double now_pre_grd = (double) res.get("max_grd");
             result.put("method", temp_id);
             result.put("number", fruits.length);
             result.put("time", now_cnt);
-            result.put("grd", df1.format(now_grd));
-            result.put("now_pre_grd", df1.format(now_pre_grd));
             int number = 0;
             List<Double> density1 = getDensity_1(request, temp_id);
             List<HashMap> exitLists = (List<HashMap>) request.get("rect");
@@ -1155,22 +1125,11 @@ public class EvaluateController {
 
         ArrayList<HashMap> msg = new ArrayList<>();
 
-        DecimalFormat df1 = new DecimalFormat("#.00000");
-        // 记录时间优先方案的最小时间，最小剂量，最大个人剂量最小
-        // 记录最小时间，最小剂量，最大个人剂量最小
         HashMap result = new HashMap();
         String file = "/1";
         Map<String, Object> res = evaluateServer.getExportStatistics(bID, 1, 1, file);
         int now_cnt = (Integer) res.get("totalTime");
-        // 剂量
-        res = evaluateServer.getGRD(bID, 1, file);
-        double now_grd = ((ArrayList<Double>) res.get("grd")).get(((ArrayList<Double>) res.get("grd")).size() - 1);
-        // 个人剂量
-        res = evaluateServer.getPerGRD(bID, 1, file);
-        double now_pre_grd = (double) res.get("max_grd");
         result.put("time", now_cnt);
-        result.put("grd", df1.format(now_grd));
-        result.put("pre_grd", df1.format(now_pre_grd));
         int number = 0;
         List<Double> density1 = getDensity_1(request, "");
         List<HashMap> exitLists = (List<HashMap>) request.get("rect");
@@ -1202,15 +1161,15 @@ public class EvaluateController {
             return Result.error("请选择一个方案");
         }
 
-        Path sourcePath = Paths.get(projectPath + "/rvo/source/" + bID + "/" + selectMethod + "/1");
-        Path targetPath = Paths.get(projectPath + "/rvo/source/" + bID + "/1");
+        Path sourcePath = Paths.get(projectPath + "/" + bID + "/" + selectMethod + "/1");
+        Path targetPath = Paths.get(projectPath + "/" + bID + "/1");
         try {
             copyDirectory(sourcePath, targetPath);
         } catch (IOException e) {
             e.printStackTrace();
             return Result.error("文件读取失败");
         }
-        targetPath = Paths.get(projectPath, "rvo", "source", String.valueOf(bID));
+        targetPath = Paths.get(projectPath, String.valueOf(bID));
         try {
             copyDirectory(sourcePath, targetPath);
         } catch (IOException e) {
@@ -1426,7 +1385,7 @@ public class EvaluateController {
         int bID = Integer.parseInt((String) request.get("bID"));
         ArrayList<String> selectMethods = (ArrayList<String>) request.get("selectMethods");
         for (String file : selectMethods) {
-            Path path = Paths.get(projectPath, "rvo", "source", String.valueOf(bID), file);
+            Path path = Paths.get(projectPath, String.valueOf(bID), file);
             try {
                 deleteFolder(path);
             } catch (IOException e) {
@@ -1477,69 +1436,6 @@ public class EvaluateController {
         return Result.success(res);
     }
 
-    // 获取剂量场统计
-    @PostMapping("/getGRD")
-    public Result getGRD(@RequestBody Map request) {
-        int bID = Integer.parseInt((String) request.get("bID"));
-        int status = Integer.parseInt(request.get("status").toString());
-        String file = String.valueOf(request.get("file"));
-        Map<String, Object> res = evaluateServer.getGRD(bID, status, file);
-        if (res == null) {
-            return Result.error("请重新模拟执行");
-        }
-        return Result.success(res);
-    }
-
-    // 获取方案剂量场统计
-    @PostMapping("/getMethodGRD")
-    public Result getMethodGRD(@RequestBody Map request) {
-        int bID = Integer.parseInt((String) request.get("bID"));
-        ArrayList<String> selectMethods = (ArrayList<String>) request.get("selectMethods");
-        ArrayList<Map<String, Object>> res = new ArrayList<>();
-        int time = 0;
-        List<Double> times = new ArrayList<>();
-        for (String file : selectMethods) {
-            Map<String, Object> res1 = evaluateServer.getGRD(bID, 1, file + "/1");
-            res.add(res1);
-            if (time < ((Number) res1.get("totalTime")).intValue()) {
-                time = ((Number) res1.get("totalTime")).intValue();
-                times = (List<Double>) res1.get("time");
-            }
-        }
-
-        HashMap result = new HashMap<>();
-        result.put("res", res);
-        result.put("time", times);
-
-        // System.out.println(res);
-        return Result.success(result);
-    }
-
-    // 获取个人剂量场统计
-    @PostMapping("/getMethodPerGRD")
-    public Result getMethodPerGRD(@RequestBody Map request) {
-        int bID = Integer.parseInt((String) request.get("bID"));
-        ArrayList<String> selectMethods = (ArrayList<String>) request.get("selectMethods");
-        ArrayList<Map<String, Object>> res = new ArrayList<>();
-        int time = 0;
-        List<Double> times = new ArrayList<>();
-        for (String file : selectMethods) {
-            Map<String, Object> res1 = evaluateServer.getPerGRD(bID, 1, file + "/1");
-            res.add(res1);
-            if (time < ((Number) res1.get("totalTime")).intValue()) {
-                time = ((Number) res1.get("totalTime")).intValue();
-                times = (List<Double>) res1.get("time");
-            }
-        }
-
-        HashMap result = new HashMap<>();
-        result.put("res", res);
-        result.put("time", times);
-
-        // System.out.println(res);
-        return Result.success(result);
-    }
-
     // 获取方案拥挤区域
     @PostMapping("/getMethodDen")
     public Result getMethodDen(@RequestBody Map request) {
@@ -1571,19 +1467,6 @@ public class EvaluateController {
         result.put("res", res);
         // System.out.println(res);
         return Result.success(result);
-    }
-
-    // 获取方案个人剂量场统计
-    @PostMapping("/getPerGRD")
-    public Result getPerGRD(@RequestBody Map request) {
-        int bID = Integer.parseInt((String) request.get("bID"));
-        int status = Integer.parseInt(request.get("status").toString());
-        String file = String.valueOf(request.get("file"));
-        Map<String, Object> res = evaluateServer.getPerGRD(bID, status, file);
-        if (res == null) {
-            return Result.error("请重新模拟执行");
-        }
-        return Result.success(res);
     }
 
     // 添加框

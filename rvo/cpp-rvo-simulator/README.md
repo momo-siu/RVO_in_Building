@@ -41,7 +41,4 @@ make
 - result.rvo: 结果数据（文本格式）
 - heatMap.rvo: 热力图数据（Java ObjectOutputStream格式）
 - exitStatistic.txt: 出口统计（文本格式）
-- grd: 剂量数据（Java ObjectOutputStream格式）
-- preGrd: 个人剂量数据（Java ObjectOutputStream格式）
 - Time.txt: 时间数据
-

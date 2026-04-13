@@ -121,7 +121,7 @@ public class RvoServerC implements RvoServer {
             }
 
             String effectiveFileName = (fileName == null || fileName.isEmpty()) ? "default" : fileName;
-            Path outputDir = Paths.get(projectPath, "rvo", "source", String.valueOf(bID), effectiveFileName);
+            Path outputDir = Paths.get(projectPath, String.valueOf(bID), effectiveFileName);
             new LegacyResultWriter().writeLegacyArtifacts(outputDir);
             jsonServer.toJsonFile(bID, status, effectiveFileName, imgX0, imgY0, sT);
 

@@ -223,7 +223,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           floorFilter:'all',
           onlyCurrentFloor:false,
           teleportDurationMs:1200,
-          occlusionGrayPerLayer:0.35,
+          occlusionGrayPerLayer:0.25,
           occlusionGrayMax:0.9,
           replayAgentStyle:'cylinder',
           agentVisualConfig:{
@@ -574,14 +574,14 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
       //   this.simulateConfig = res.data.data.simulateConfig;
       //   if(this.simulateConfig == null || this.simulateConfig.length != 3){
       //     this.simulateConfig = [
-      //       {argument:"集合点剂量率阈值(mSv)",weight:Number(10)},
+      //       {argument:"集合点数量最小值",weight:Number(1)},
       //       {argument:"集合点数量最小值",weight:Number(1)},
       //       {argument:"集合点数量最大值",weight:Number(1)},
       //     ];
       //   }
-      //   if(this.simulateConfig[0].argument === "集合点剂量阈值(mSv)"){
+      //   if(this.simulateConfig[0].argument === "集合点数量最小值"){
       //     this.simulateConfig = [
-      //       {argument:"集合点剂量率阈值(mSv)",weight:Number(10)},
+      //       {argument:"集合点数量最小值",weight:Number(1)},
       //       {argument:"集合点数量最小值",weight:Number(1)},
       //       {argument:"集合点数量最大值",weight:Number(1)},
       //     ];
@@ -1005,7 +1005,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                 {argument:"集合点数量最大值",weight:2},
               ];
             }
-            if(this.simulateConfig[0].argument === "集合点剂量阈值(mSv)" || this.simulateConfig[0].argument === "集合点剂量率阈值(mSv)"){
+            if(this.simulateConfig[0].argument !== "集合点数量最小值" || this.simulateConfig[1].argument !== "集合点数量最大值"){
               this.simulateConfig = [
                 {argument:"集合点数量最小值",weight:1},
                 {argument:"集合点数量最大值",weight:2},
@@ -3084,108 +3084,13 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           });
         },
         initShow_2(){
-          //获取数据
-          var url = restweburl + 'getGRD';
-          axios({
-              url: url,
-              method: "post",
-              data:{
-                bID:this.$route.params.bID,
-                file:1,
-                status:1
-              }
-          })
-          .then(async (res) => {
-              if(res.data.msg==='success'){
-                if(this.tabPosition=='graph'){
-                  // 基于准备好的dom，初始化echarts实例
-                  var myChart;
-                  myChart = echarts.init(document.getElementById('受照剂量-时间(时间优先)'));
-                  // 绘制图表
-                  var dat = {
-                    title: {
-                      text: '受照剂量-时间'
-                    },
-                    tooltip: {},
-                    xAxis: {
-                      name:'时间/s',
-                      type:'category',
-                      data: res.data.data.time
-                    },
-                    yAxis: {
-                      name:'受照剂量/mSv',
-                      type:'value',
-                      scale:true,
-                    },
-                    legend: {
-                      data: ['grd']
-                    },
-                    series: [],
-                    toolbox: {
-                        show: true,
-                        feature: {
-                            mark: {show: true},
-                            saveAsImage: {show: true},
-                        }
-                    },
-                  };
-
-                  //图表数据载入
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   // alert(res.data.data.exits[i].name)
-                  //   dat.legend.data.push(res.data.data.exits[i].name);
-                  // }
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   dat.series.push({name:res.data.data.exits[i].name,type:'line',data:res.data.data.exits[i].data});
-                  // }
-                  // myChart.setOption(dat);
-
-                  //图表数据载入
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   // alert(res.data.data.exits[i].name)
-                  //   dat.legend.data.push(res.data.data.exits[i].name);
-                  // }
-                  for(let i=0;i<1;i++){
-                    dat.series.push({name:'test',type:'line',data:res.data.data.grd});
-                  }
-                  myChart.setOption(dat);
-                }
-                else if(this.tabPosition=='data'){
-                  this.table_raw=[];this.table_raw_label=[];
-                  //原始数据载入
-                  for(let i=0;i<1;i++){
-                    this.table_raw_label.push({label:'剂量',prop:'剂量'});
-                  }
-                  let dat_2=[];
-                  console.log('law',res.data.data.grd);
-
-                  for(let i=0;i<res.data.data.time.length;i++){
-                    let dat_3={};
-                      dat_3['剂量']=res.data.data.grd[i];
-                    dat_2.push(dat_3);  
-                  }
-                  console.log('dat',dat_2);
-                  this.table_raw=dat_2; 
-                  console.log(this.table_raw);
-                }
-              }
-              else{
-                  this.$notify({
-                      title: '注意',
-                      message: res.data.msg,
-                      type: 'warning',
-                      offset: 100
-                  });
-                  this.isUpdate=0;
-              }
-          }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
-                  offset: 100
-              });
-              this.isUpdate=-1;
+          this.table_raw = [];
+          this.table_raw_label = [];
+          this.$notify({
+            title: '提示',
+            message: '该统计模块已移除',
+            type: 'info',
+            offset: 100
           });
         },
         initShow_3(){
@@ -3204,7 +3109,6 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                 if(this.tabPosition=='graph'){
                   // 基于准备好的dom，初始化echarts实例
                   var myChart;
-                  alert(document.getElementById('区域密度-时间'))
                   myChart = echarts.init(document.getElementById('区域密度-时间'));
                   // 绘制图表
                   var dat = {
@@ -3218,12 +3122,12 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                       data: res.data.data.time
                     },
                     yAxis: {
-                      name:'受照剂量/mSv',
+                      name:'区域密度',
                       type:'value',
                       scale:true,
                     },
                     legend: {
-                      data: ['grd']
+                      data: ['density']
                     },
                     series: [],
                     toolbox: {
@@ -3240,23 +3144,19 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                   //   // alert(res.data.data.exits[i].name)
                   //   dat.legend.data.push(res.data.data.exits[i].name);
                   // }
-                  for(let i=0;i<res.data.data.time.length;i++){
-                    dat.series.push({name:'test',type:'line',data:res.data.data.grd[i]});
-                  }
+                  dat.series.push({name:'density',type:'line',data:res.data.data});
                   myChart.setOption(dat);
                 }
                 else if(this.tabPosition=='data'){
                   this.table_raw=[];this.table_raw_label=[];
                   //原始数据载入
                   for(let i=0;i<1;i++){
-                    this.table_raw_label.push({label:'剂量',prop:'剂量'});
+                    this.table_raw_label.push({label:'密度',prop:'密度'});
                   }
                   let dat_2=[];
                   for(let i=0;i<res.data.data.time.length;i++){
                     let dat_3={};
-                    for(let j=0;j<res.data.data.time.length;j++){
-                      dat_3['剂量']=res.data.data.grd[j];
-                    }
+                    dat_3['密度']=res.data.data[i];
                     dat_2.push(dat_3);
                   }
                   this.table_raw=dat_2;
@@ -3391,93 +3291,13 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           });
         },
         initShow_5(){
-          //获取数据
-          var url = restweburl + 'getPerGRD';
-          axios({
-              url: url,
-              method: "post",
-              data:{
-                bID:this.$route.params.bID,
-                file:1,
-                status:1
-              }
-          })
-          .then(async (res) => {
-              if(res.data.msg==='success'){
-                if(this.tabPosition=='graph'){
-                   // 基于准备好的dom，初始化echarts实例
-                    var myChart = echarts.init(document.getElementById('受照剂量-人数直方图(时间优先)'));
-                    // 绘制图表
-                    var dat = {
-                      title: {
-                        text: '受照剂量-人数'
-                      },
-                      tooltip: {},
-                      xAxis: {
-                        name:'受照剂量/mSv',
-                        type: 'category',
-                        data: res.data.data.time // 人数
-                      },
-                      yAxis: {
-                        name:'人数/人',
-                        type: 'value'
-                      },
-                      series: [{
-                        name: '受照剂量',
-                        type: 'bar', // 更改为 'bar' 以绘制直方图
-                        data: res.data.data.grd, // 直方图数据
-                        itemStyle: {
-                          color: '#3398DB' // 设置直方图的颜色
-                        },
-                        barWidth: '50%' // 设置柱子的宽度
-                      }],
-                      toolbox: {
-                          show: true,
-                          feature: {
-                              mark: {show: true},
-                              saveAsImage: {show: true},
-                          }
-                      },
-                    };
-                    // 使用刚指定的配置项和数据显示图表。
-                    myChart.setOption(dat);
-                }
-                else if(this.tabPosition=='data'){
-                  this.table_raw=[];this.table_raw_label=[];
-                  //原始数据载入
-                  for(let i=0;i<1;i++){
-                    this.table_raw_label.push({label:'剂量',prop:'剂量'});
-                  }
-                  let dat_2=[];
-                  console.log('law',res.data.data.grd);
-
-                  for(let i=0;i<res.data.data.time.length;i++){
-                    let dat_3={};
-                      dat_3['剂量']=res.data.data.grd[i];
-                    dat_2.push(dat_3);  
-                  }
-                  console.log('dat',dat_2);
-                  this.table_raw=dat_2; 
-                  console.log(this.table_raw);
-                }
-              }
-              else{
-                  this.$notify({
-                      title: '注意',
-                      message: res.data.msg,
-                      type: 'warning',
-                      offset: 100
-                  });
-                  this.isUpdate=0;
-              }
-          }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
-                  offset: 100
-              });
-              this.isUpdate=-1;
+          this.table_raw = [];
+          this.table_raw_label = [];
+          this.$notify({
+            title: '提示',
+            message: '该统计模块已移除',
+            type: 'info',
+            offset: 100
           });
         },
         initShow_6(){
@@ -3497,7 +3317,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                 if(this.tabPosition=='graph'){
                   // 基于准备好的dom，初始化echarts实例
                   var myChart;
-                  myChart = echarts.init(document.getElementById('撤离人数-时间(剂量优先)'));
+                  myChart = echarts.init(document.getElementById('撤离人数-时间(方案二)'));
                   // 绘制图表
                   var dat = {
                     title: {
@@ -3575,107 +3395,13 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           });
         },
         initShow_7(){
-          //获取数据
-          var url = restweburl + 'getGRD';
-          axios({
-              url: url,
-              method: "post",
-              data:{
-                bID:this.$route.params.bID,
-                file:2,
-                status:2
-              }
-          })
-          .then(async (res) => {
-              if(res.data.msg==='success'){
-                if(this.tabPosition=='graph'){
-                  // 基于准备好的dom，初始化echarts实例
-                  var myChart;
-                  myChart = echarts.init(document.getElementById('受照剂量-时间(剂量优先)'));
-                  // 绘制图表
-                  var dat = {
-                    title: {
-                      text: '受照剂量-时间'
-                    },
-                    tooltip: {},
-                    xAxis: {
-                      name:'时间/s',
-                      type:'category',
-                      data: res.data.data.time
-                    },
-                    yAxis: {
-                      name:'受照剂量/mSV',
-                      type:'value',
-                      scale:true,
-                    },
-                    legend: {
-                      data: ['grd']
-                    },
-                    series: [],
-                    toolbox: {
-                        show: true,
-                        feature: {
-                            mark: {show: true},
-                            saveAsImage: {show: true},
-                        }
-                    },
-                  };
-                  // //图表数据载入
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   // alert(res.data.data.exits[i].name)
-                  //   dat.legend.data.push(res.data.data.exits[i].name);
-                  // }
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   dat.series.push({name:res.data.data.exits[i].name,type:'line',data:res.data.data.exits[i].data});
-                  // }
-                  // myChart.setOption(dat);
-
-                  //图表数据载入
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   // alert(res.data.data.exits[i].name)
-                  //   dat.legend.data.push(res.data.data.exits[i].name);
-                  // }
-                  for(let i=0;i<1;i++){
-                    dat.series.push({name:'test',type:'line',data:res.data.data.grd});
-                  }
-                  myChart.setOption(dat);
-                }
-                else if(this.tabPosition=='data'){
-                  this.table_raw=[];this.table_raw_label=[];
-                  //原始数据载入
-                  for(let i=0;i<1;i++){
-                    this.table_raw_label.push({label:'剂量',prop:'剂量'});
-                  }
-                  let dat_2=[];
-                  console.log('law',res.data.data.grd);
-
-                  for(let i=0;i<res.data.data.time.length;i++){
-                    let dat_3={};
-                      dat_3['剂量']=res.data.data.grd[i];
-                    dat_2.push(dat_3);  
-                  }
-                  console.log('dat',dat_2);
-                  this.table_raw=dat_2; 
-                  console.log(this.table_raw);
-                }
-              }
-              else{
-                  this.$notify({
-                      title: '注意',
-                      message: res.data.msg,
-                      type: 'warning',
-                      offset: 100
-                  });
-                  this.isUpdate=0;
-              }
-          }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
-                  offset: 100
-              });
-              this.isUpdate=-1;
+          this.table_raw = [];
+          this.table_raw_label = [];
+          this.$notify({
+            title: '提示',
+            message: '该统计模块已移除',
+            type: 'info',
+            offset: 100
           });
         },
         initShow_8() {
@@ -3694,7 +3420,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
             if (res.data.msg === 'success') {
               if (this.tabPosition === 'graph') {
                 // 基于准备好的dom，初始化echarts实例
-                var myChart = echarts.init(document.getElementById('撤离人数-时间直方图(剂量优先)'));
+                var myChart = echarts.init(document.getElementById('撤离人数-时间直方图(方案二)'));
                 //let all_exit = res.data.data.exits[res.data.data.exits.length-1].data[res.data.data.exits[res.data.data.exits.length-1].data.length-1]
                 let timeIntervals = res.data.data.time.filter((time, index) => index % 3 === 0);
                 // 绘制图表
@@ -3788,93 +3514,13 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           });
         },
         initShow_9(){
-          //获取数据
-          var url = restweburl + 'getPerGRD';
-          axios({
-              url: url,
-              method: "post",
-              data:{
-                bID:this.$route.params.bID,
-                file:2,
-                status:2
-              }
-          })
-          .then(async (res) => {
-              if(res.data.msg==='success'){
-                if(this.tabPosition=='graph'){
-                   // 基于准备好的dom，初始化echarts实例
-                    var myChart = echarts.init(document.getElementById('受照剂量-人数直方图(剂量优先)'));
-                    // 绘制图表
-                    var dat = {
-                      title: {
-                        text: '受照剂量-人数'
-                      },
-                      tooltip: {},
-                      xAxis: {
-                        name:'受照剂量/mSv',
-                        type: 'category',
-                        data: res.data.data.time // 人数
-                      },
-                      yAxis: {
-                        name:'人数/人',
-                        type: 'value'
-                      },
-                      series: [{
-                        name: '受照剂量',
-                        type: 'bar', // 更改为 'bar' 以绘制直方图
-                        data: res.data.data.grd, // 直方图数据
-                        itemStyle: {
-                          color: '#3398DB' // 设置直方图的颜色
-                        },
-                        barWidth: '50%' // 设置柱子的宽度
-                      }],
-                      toolbox: {
-                          show: true,
-                          feature: {
-                              mark: {show: true},
-                              saveAsImage: {show: true},
-                          }
-                      },
-                    };
-                    // 使用刚指定的配置项和数据显示图表。
-                    myChart.setOption(dat);
-                }
-                else if(this.tabPosition=='data'){
-                  this.table_raw=[];this.table_raw_label=[];
-                  //原始数据载入
-                  for(let i=0;i<1;i++){
-                    this.table_raw_label.push({label:'剂量',prop:'剂量'});
-                  }
-                  let dat_2=[];
-                  console.log('law',res.data.data.grd);
-
-                  for(let i=0;i<res.data.data.time.length;i++){
-                    let dat_3={};
-                      dat_3['剂量']=res.data.data.grd[i];
-                    dat_2.push(dat_3);  
-                  }
-                  console.log('dat',dat_2);
-                  this.table_raw=dat_2; 
-                  console.log(this.table_raw);
-                }
-              }
-              else{
-                  this.$notify({
-                      title: '注意',
-                      message: res.data.msg,
-                      type: 'warning',
-                      offset: 100
-                  });
-                  this.isUpdate=0;
-              }
-          }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
-                  offset: 100
-              });
-              this.isUpdate=-1;
+          this.table_raw = [];
+          this.table_raw_label = [];
+          this.$notify({
+            title: '提示',
+            message: '该统计模块已移除',
+            type: 'info',
+            offset: 100
           });
         },
         initShow_10(){
@@ -3894,7 +3540,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                 if(this.tabPosition=='graph'){
                   // 基于准备好的dom，初始化echarts实例
                   var myChart;
-                  myChart = echarts.init(document.getElementById('撤离人数-时间(最大剂量最小优先)'));
+                  myChart = echarts.init(document.getElementById('撤离人数-时间(方案三)'));
                   // 绘制图表
                   var dat = {
                     title: {
@@ -3972,107 +3618,13 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           });
         },
         initShow_11(){
-          //获取数据
-          var url = restweburl + 'getGRD';
-          axios({
-              url: url,
-              method: "post",
-              data:{
-                bID:this.$route.params.bID,
-                file:3,
-                status:2
-              }
-          })
-          .then(async (res) => {
-              if(res.data.msg==='success'){
-                if(this.tabPosition=='graph'){
-                  // 基于准备好的dom，初始化echarts实例
-                  var myChart;
-                  myChart = echarts.init(document.getElementById('受照剂量-时间(最大剂量最小优先)'));
-                  // 绘制图表
-                  var dat = {
-                    title: {
-                      text: '受照剂量-时间'
-                    },
-                    tooltip: {},
-                    xAxis: {
-                      name:'时间/s',
-                      type:'category',
-                      data: res.data.data.time
-                    },
-                    yAxis: {
-                      name:'受照剂量/mSv',
-                      type:'value',
-                      scale:true,
-                    },
-                    legend: {
-                      data: ['grd']
-                    },
-                    series: [],
-                    toolbox: {
-                        show: true,
-                        feature: {
-                            mark: {show: true},
-                            saveAsImage: {show: true},
-                        }
-                    },
-                  };
-                  // //图表数据载入
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   // alert(res.data.data.exits[i].name)
-                  //   dat.legend.data.push(res.data.data.exits[i].name);
-                  // }
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   dat.series.push({name:res.data.data.exits[i].name,type:'line',data:res.data.data.exits[i].data});
-                  // }
-                  // myChart.setOption(dat);
-
-                  //图表数据载入
-                  // for(let i=0;i<res.data.data.exits.length;i++){
-                  //   // alert(res.data.data.exits[i].name)
-                  //   dat.legend.data.push(res.data.data.exits[i].name);
-                  // }
-                  for(let i=0;i<1;i++){
-                    dat.series.push({name:'test',type:'line',data:res.data.data.grd});
-                  }
-                  myChart.setOption(dat);
-                }
-                else if(this.tabPosition=='data'){
-                  this.table_raw=[];this.table_raw_label=[];
-                  //原始数据载入
-                  for(let i=0;i<1;i++){
-                    this.table_raw_label.push({label:'剂量',prop:'剂量'});
-                  }
-                  let dat_2=[];
-                  console.log('law',res.data.data.grd);
-
-                  for(let i=0;i<res.data.data.time.length;i++){
-                    let dat_3={};
-                      dat_3['剂量']=res.data.data.grd[i];
-                    dat_2.push(dat_3);  
-                  }
-                  console.log('dat',dat_2);
-                  this.table_raw=dat_2; 
-                  console.log(this.table_raw);
-                }
-              }
-              else{
-                  this.$notify({
-                      title: '注意',
-                      message: res.data.msg,
-                      type: 'warning',
-                      offset: 100
-                  });
-                  this.isUpdate=0;
-              }
-          }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
-                  offset: 100
-              });
-              this.isUpdate=-1;
+          this.table_raw = [];
+          this.table_raw_label = [];
+          this.$notify({
+            title: '提示',
+            message: '该统计模块已移除',
+            type: 'info',
+            offset: 100
           });
         },
         initShow_12() {
@@ -4091,7 +3643,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
             if (res.data.msg === 'success') {
               if (this.tabPosition === 'graph') {
                 // 基于准备好的dom，初始化echarts实例
-                var myChart = echarts.init(document.getElementById('撤离人数-时间直方图(剂量优先)'));
+                var myChart = echarts.init(document.getElementById('撤离人数-时间直方图(方案三)'));
                 //let all_exit = res.data.data.exits[res.data.data.exits.length-1].data[res.data.data.exits[res.data.data.exits.length-1].data.length-1]
                 let timeIntervals = res.data.data.time.filter((time, index) => index % 3 === 0);
                 // 绘制图表
@@ -4185,93 +3737,13 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           });
         },
         initShow_13(){
-          //获取数据
-          var url = restweburl + 'getPerGRD';
-          axios({
-              url: url,
-              method: "post",
-              data:{
-                bID:this.$route.params.bID,
-                file:3,
-                status:2
-              }
-          })
-          .then(async (res) => {
-              if(res.data.msg==='success'){
-                if(this.tabPosition=='graph'){
-                   // 基于准备好的dom，初始化echarts实例
-                    var myChart = echarts.init(document.getElementById('受照剂量-人数直方图(最大剂量最小优先)'));
-                    // 绘制图表
-                    var dat = {
-                      title: {
-                        text: '受照剂量-人数'
-                      },
-                      tooltip: {},
-                      xAxis: {
-                        name:'受照剂量/mSv',
-                        type: 'category',
-                        data: res.data.data.time // 人数
-                      },
-                      yAxis: {
-                        name:'人数/人',
-                        type: 'value'
-                      },
-                      series: [{
-                        name: '受照剂量',
-                        type: 'bar', // 更改为 'bar' 以绘制直方图
-                        data: res.data.data.grd, // 直方图数据
-                        itemStyle: {
-                          color: '#3398DB' // 设置直方图的颜色
-                        },
-                        barWidth: '50%' // 设置柱子的宽度
-                      }],
-                      toolbox: {
-                          show: true,
-                          feature: {
-                              mark: {show: true},
-                              saveAsImage: {show: true},
-                          }
-                      },
-                    };
-                    // 使用刚指定的配置项和数据显示图表。
-                    myChart.setOption(dat);
-                }
-                else if(this.tabPosition=='data'){
-                  this.table_raw=[];this.table_raw_label=[];
-                  //原始数据载入
-                  for(let i=0;i<1;i++){
-                    this.table_raw_label.push({label:'剂量',prop:'剂量'});
-                  }
-                  let dat_2=[];
-                  console.log('law',res.data.data.grd);
-
-                  for(let i=0;i<res.data.data.time.length;i++){
-                    let dat_3={};
-                      dat_3['剂量']=res.data.data.grd[i];
-                    dat_2.push(dat_3);  
-                  }
-                  console.log('dat',dat_2);
-                  this.table_raw=dat_2; 
-                  console.log(this.table_raw);
-                }
-              }
-              else{
-                  this.$notify({
-                      title: '注意',
-                      message: res.data.msg,
-                      type: 'warning',
-                      offset: 100
-                  });
-                  this.isUpdate=0;
-              }
-          }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
-                  offset: 100
-              });
-              this.isUpdate=-1;
+          this.table_raw = [];
+          this.table_raw_label = [];
+          this.$notify({
+            title: '提示',
+            message: '该统计模块已移除',
+            type: 'info',
+            offset: 100
           });
         },
         // 获取方案数据
@@ -4312,8 +3784,6 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                   this.table_raw_method=[];
                   //原始数据载入
                   this.table_raw_method.push({indicator:'撤离时间', simulatedData:res.data.data.evacuation.totalTime/2 + 's'})
-                  this.table_raw_method.push({indicator:'总体剂量', simulatedData:res.data.data.globalGrd.grd[res.data.data.globalGrd.grdSize-1]+ 'mSV'})
-                  this.table_raw_method.push({indicator:'最大个人剂量', simulatedData:res.data.data.perGrd.max_grd+ 'mSV'})
               }
               else{
                   this.$notify({
@@ -4350,8 +3820,6 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                   this.table_raw_method=[];
                   //原始数据载入
                   this.table_raw_method.push({indicator:'撤离时间', simulatedData:res.data.data.evacuation.totalTime/2 + 's'})
-                  this.table_raw_method.push({indicator:'总体剂量', simulatedData:res.data.data.globalGrd.grd[res.data.data.globalGrd.grdSize-1]+ 'mSV'})
-                  this.table_raw_method.push({indicator:'最大个人剂量', simulatedData:res.data.data.perGrd.max_grd+ 'mSV'})
               }
               else{
                   this.$notify({
@@ -4390,18 +3858,6 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
                                 method1:res.data.data.res1.evacuation.totalTime + 's',
                                 method2:res.data.data.res2.evacuation.totalTime + 's',
                                 method3:res.data.data.res3.evacuation.totalTime + 's',
-                              })
-                              this.table_raw_method.push({
-                                indicator:'总体剂量',
-                                method1:res.data.data.res1.globalGrd.grd[res.data.data.res1.globalGrd.grdSize-1] + 'mSV',
-                                method2:res.data.data.res2.globalGrd.grd[res.data.data.res2.globalGrd.grdSize-1] + 'mSV',
-                                method3:res.data.data.res3.globalGrd.grd[res.data.data.res3.globalGrd.grdSize-1] + 'mSV',
-                              })
-                              this.table_raw_method.push({
-                                indicator:'最大个人剂量', 
-                                method1:res.data.data.res1.perGrd.max_grd + 'mSV',
-                                method2:res.data.data.res2.perGrd.max_grd + 'mSV',
-                                method3:res.data.data.res3.perGrd.max_grd + 'mSV',
                               })
                           }
                          
@@ -4502,148 +3958,19 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           });
         },
         initShow_15(){
-          //获取数据
-          var url = restweburl + 'getMethodGRD';
-          axios({
-              url: url,
-              method: "post",
-              data:{
-                bID:this.$route.params.bID,
-                selectMethods:this.selectMethod,
-              }
-          })
-          .then(async (res) => {
-              if(res.data.msg==='success'){
-                  // 基于准备好的dom，初始化echarts实例
-                  var myChart;
-                  myChart = echarts.init(document.getElementById('受照剂量对比'));
-                  // 绘制图表
-                  var dat = {
-                    title: {
-                      text: '受照剂量-时间'
-                    },
-                    tooltip: {},
-                    xAxis: {
-                      name:'时间/s',
-                      type:'category',
-                      data: res.data.data.time
-                    },
-                    yAxis: {
-                      name:'受照剂量/mSV',
-                      type:'value',
-                      scale:true,
-                    },
-                    legend: {
-                      data: []
-                    },
-                    series: [],
-                    toolbox: {
-                        show: true,
-                        feature: {
-                            mark: {show: true},
-                            saveAsImage: {show: true},
-                        }
-                    },
-
-                  };
-
-                  //图表数据载入
-                  for(let i = 1; i <= this.selectMethod.length; i++){
-                    dat.legend.data.push("method "+i);
-                    dat.series.push({name:"method "+i,type:'line',data:res.data.data.res[i-1].grd});
-                  }
-
-                  myChart.setOption(dat);
-                
-              }
-              else{
-                  this.$notify({
-                      title: '注意',
-                      message: res.data.msg,
-                      type: 'warning',
-                      offset: 100
-                  });
-                  this.isUpdate=0;
-              }
-          }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
-                  offset: 100
-              });
-              this.isUpdate=-1;
+          this.$notify({
+            title: '提示',
+            message: '该统计模块已移除',
+            type: 'info',
+            offset: 100
           });
         },
         initShow_16(){
-          //获取数据
-          var url = restweburl + 'getMethodPerGRD';
-          axios({
-              url: url,
-              method: "post",
-              data:{
-                bID:this.$route.params.bID,
-                selectMethods:this.selectMethod,
-              }
-          })
-          .then(async (res) => {
-              if(res.data.msg==='success'){
-                  // 基于准备好的dom，初始化echarts实例
-                  var myChart;
-                  myChart = echarts.init(document.getElementById('最大个人剂量对比'));
-                  
-                 // 准备x轴数据
-                 var xAxisData = [];
-                 for (var i = 1; i <= this.selectMethod.length; i++) {
-                     xAxisData.push('method ' + i);
-                 }
-
-                 // 准备y轴数据
-                 var seriesData = [];
-                 for (let j = 0; j < this.selectMethod.length; j++) {
-                     seriesData.push(res.data.data.res[j].max_grd);
-                 }
-                   // 绘制图表
-                   var dat = {
-                     title: {
-                         text: '最大个人剂量对比/mSv'
-                     },
-                     tooltip: {},
-                     legend: {
-                         data: ['剂量']
-                     },
-                     xAxis: {
-                         data: xAxisData
-                     },
-                     yAxis: {},
-                     series: [{
-                         name: '剂量/mSV',
-                         type: 'bar',
-                         data: seriesData
-                     }]
-                 };
-
-                 // 图表数据载入
-                 myChart.setOption(dat);
-                
-              }
-              else{
-                  this.$notify({
-                      title: '注意',
-                      message: res.data.msg,
-                      type: 'warning',
-                      offset: 100
-                  });
-                  this.isUpdate=0;
-              }
-          }).catch((error) =>{
-              this.$notify.error({
-                  title: '错误',
-                  message: error,
-                  duration: 0,
-                  offset: 100
-              });
-              this.isUpdate=-1;
+          this.$notify({
+            title: '提示',
+            message: '该统计模块已移除',
+            type: 'info',
+            offset: 100
           });
         },
         initShow_19(){
@@ -4800,7 +4127,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
         //   });
         // },
         formatToScientificNotation(cellValue) {
-          var num = parseFloat(cellValue.grd);
+          var num = parseFloat(cellValue.value);
           if (num !== null && num !== undefined && !isNaN(num)) {
             // 格式化为科学计数法，保留5位小数
             return num.toExponential(5).replace('e', ' e').replace('E', ' E');
@@ -4808,7 +4135,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           return num.toString();
         },
         formatToScientificNotationpre(cellValue) {
-          var num = parseFloat(cellValue.now_pre_grd);
+          var num = parseFloat(cellValue.value);
           if (num !== null && num !== undefined && !isNaN(num)) {
             // 格式化为科学计数法，保留5位小数
             return num.toExponential(5).replace('e', ' e').replace('E', ' E');

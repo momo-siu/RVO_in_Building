@@ -680,7 +680,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="受照剂量-时间(时间优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="区域密度-时间"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -809,7 +809,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="受照剂量-人数直方图(时间优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="方案一-备用统计"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -844,7 +844,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="撤离人数-时间(剂量优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="撤离人数-时间(方案二)"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -879,7 +879,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="受照剂量-时间(剂量优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="方案二-备用统计"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -914,7 +914,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="撤离人数-时间直方图(剂量优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="撤离人数-时间直方图(方案二)"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -949,7 +949,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="受照剂量-人数直方图(剂量优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="方案二-备用分布"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -984,7 +984,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="撤离人数-时间(最大剂量最小优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="撤离人数-时间(方案三)"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -1019,7 +1019,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="受照剂量-时间(最大剂量最小优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="方案三-备用统计"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -1054,7 +1054,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="撤离人数-时间直方图(最大剂量最小优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="撤离人数-时间直方图(方案三)"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -1089,7 +1089,7 @@
           <el-radio-button label="graph">图表</el-radio-button>
           <el-radio-button label="data">原始数据</el-radio-button>
         </el-radio-group>
-        <div v-show="tabPosition === 'graph'" class="chart-container" id="受照剂量-人数直方图(最大剂量最小优先)"></div>
+        <div v-show="tabPosition === 'graph'" class="chart-container" id="方案三-备用分布"></div>
         <div v-show="tabPosition === 'data'" class="data-container">
           <el-button @click="exportExcel()" style="float: left;">下载</el-button>
           <div class="table-container">
@@ -1219,11 +1219,11 @@
             ></el-table-column>
             <el-table-column
               prop="method2"
-              label="剂量优先方案"
+              label="方案二"
             ></el-table-column>
             <el-table-column
               prop="method3"
-              label="个人剂量最小优先方案"
+              label="方案三"
             ></el-table-column>
             </el-table>
           </div>
@@ -1246,39 +1246,6 @@
     <el-tabs type="border-card" :v-model="typeChoose" @tab-click="selectShow">
       <div>
         <div class="chart-container" id="撤离时间对比"></div>
-      </div>
-    </el-tabs>
-  </div>
-</div>
-<div class="dialog-content-container" v-show="dialogVisible_attr_show_15">
-  <div class="dialog-content">
-    <!-- 关闭按钮 -->
-    <div class="close-btn-container" @click="closeMethod_5">
-        <el-button type="text" class="close-btn" style="float: right;margin-right: 10px">
-          <i class="el-icon-close"></i>
-        </el-button>
-      </div>
-      <div class="table-title">
-            <h3>受照剂量对比</h3>
-          </div>
-    <el-tabs type="border-card" :v-model="typeChoose" @tab-click="selectShow">
-      <div>
-        <div class="chart-container" id="受照剂量对比"></div>
-      </div>
-    </el-tabs>
-  </div>
-</div>
-<div class="dialog-content-container" v-show="dialogVisible_attr_show_16">
-  <div class="dialog-content">
-    <!-- 关闭按钮 -->
-    <div class="close-btn-container" @click="closeMethod_6">
-        <el-button type="text" class="close-btn" style="float: right;margin-right: 10px">
-          <i class="el-icon-close"></i>
-        </el-button>
-      </div>
-    <el-tabs type="border-card" :v-model="typeChoose" @tab-click="selectShow">
-      <div>
-        <div class="chart-container" id="最大个人剂量对比"></div>
       </div>
     </el-tabs>
   </div>

@@ -17,14 +17,6 @@
             style="display: none"
             @change="upCon()"
         />
-        <input
-            type="file"
-            name="filename"
-            id="open_3"
-            style="display: none"
-            @change="upGRD()"
-            multiple
-        />
 
         <div class="control-panel">
             <div style="text-align: center; margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;">
@@ -518,10 +510,6 @@ body {
             changeCon(){
                 document.getElementById("open_2").value="";
                 document.getElementById("open_2").click();
-            },
-            changeGRD(){
-                document.getElementById("open_3").value="";
-                document.getElementById("open_3").click();
             },
             deleteBack(){
                 this.formdata.delete("background");

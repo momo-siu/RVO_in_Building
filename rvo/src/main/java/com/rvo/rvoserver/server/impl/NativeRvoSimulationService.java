@@ -61,6 +61,6 @@ public class NativeRvoSimulationService {
     }
 
     private Path resolveOutputPath(int bID, String fileName) {
-        return Paths.get(projectPath, "rvo", "source", String.valueOf(bID), fileName == null ? "default" : fileName);
+        return Paths.get(projectPath, String.valueOf(bID), fileName == null ? "default" : fileName);
     }
 }

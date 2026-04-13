@@ -36,44 +36,29 @@ public class BlueprintController {
 
     @PostMapping("/createBlueprint")
     public Result createBlueprint(@RequestParam(value = "background", required = false) MultipartFile background,
-                                  @RequestParam(value = "files", required = false) MultipartFile[] files,
-                                  @RequestParam(value = "name") String name,
-                                  @RequestParam(value = "description") String description,
-                                  @RequestParam(value = "addr") String addr,
-                                  @RequestParam(value = "mapWidth") int mapWidth,
-                                  @RequestParam(value = "mapHeight") int mapHeight) throws IOException {
+            @RequestParam(value = "name") String name,
+            @RequestParam(value = "description") String description,
+            @RequestParam(value = "addr") String addr,
+            @RequestParam(value = "mapWidth") int mapWidth,
+            @RequestParam(value = "mapHeight") int mapHeight) throws IOException {
 
         int id = blueprintServer.createBlueprint(name, description, "", mapHeight, mapWidth, addr);
 
-        //创建文件夹 - 修复路径，确保项目保存在 rvo/source/{id} 目录下
-        String projectPath = System.getProperty("user.dir");
-        File projectFolder = new File(projectPath + "/rvo/source/" + String.valueOf(id));
-        if(!projectFolder.exists()) {
+        // 创建文件夹 - 使用配置的项目路径，确保项目保存在 source/{id} 目录下
+        File projectFolder = new File(projectPath, String.valueOf(id));
+        if (!projectFolder.exists()) {
             if (!projectFolder.mkdirs()) {
                 return Result.error("Server file error");
             }
         }
 
-        //保存背景图片
+        // 保存背景图片
         if (background != null && !background.isEmpty()) {
             String originalFileName = background.getOriginalFilename();
             String newFileName = "background" + originalFileName.substring(originalFileName.lastIndexOf("."));
             background.transferTo(new File(projectFolder, newFileName));
-            String backgroundPath = "source/" + id + "/" + newFileName; //前端访问路径
+            String backgroundPath = "source/" + id + "/" + newFileName; // 前端访问路径
             blueprintServer.saveBackground(id, backgroundPath);
-        }
-
-        //保存剂量场文件 (如果前端以后还传的话，保持逻辑健壮但不强求)
-        if (files != null && files.length > 0) {
-            File grdFile = new File(projectFolder, "GRD_Data");
-            if (!grdFile.exists()) {
-                grdFile.mkdirs();
-            }
-            int originalLength = files.length;
-            for (int i = 0; i < Math.min(originalLength, 12); i++) {
-                File targetFile = new File(grdFile, "Effective_0" + (i + 1) + "-00.GRD");
-                files[i].transferTo(targetFile);
-            }
         }
 
         return Result.success(id);
@@ -81,14 +66,13 @@ public class BlueprintController {
 
     @PostMapping("/updateBlueprint")
     public Result updateBlueprint(@RequestParam("name") String name,
-                                  @RequestParam("description") String description,
-                                  @RequestParam("bID") String bID,
-                                  @RequestParam("addr") String addr) throws IOException {
-
+            @RequestParam("description") String description,
+            @RequestParam("bID") String bID,
+            @RequestParam("addr") String addr) throws IOException {
 
         int id = Integer.parseInt(bID);
 
-        //修改项目
+        // 修改项目
         blueprintServer.updateBlueprint(id, name, description, addr);
         return Result.success(id);
     }
@@ -102,11 +86,12 @@ public class BlueprintController {
     @PostMapping("/uploadBackground")
     public Result uploadHeader(HttpServletRequest request) throws IOException {
         int bID = Integer.parseInt(request.getHeader("bID"));
-        //获取文件
+        // 获取文件
         MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
         MultipartFile file = multipartRequest.getFile("file");
         String originalFileName = file.getOriginalFilename();
-        String newFileName = UUID.randomUUID().toString() + originalFileName.substring(originalFileName.lastIndexOf("."));
+        String newFileName = UUID.randomUUID().toString()
+                + originalFileName.substring(originalFileName.lastIndexOf("."));
         file.transferTo(new File(backgroundPath + newFileName));
         blueprintServer.setBg(bID, "background/" + newFileName);
         return Result.success("background/" + newFileName);
@@ -115,7 +100,7 @@ public class BlueprintController {
     @PostMapping("/uploadSize")
     public Result uploadSize(HttpServletRequest request) throws IOException {
         int bID = Integer.parseInt(request.getHeader("bID"));
-        //获取文件
+        // 获取文件
         MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
         MultipartFile file = multipartRequest.getFile("file");
         assert file != null;
@@ -133,7 +118,7 @@ public class BlueprintController {
     @PostMapping("/getBlueprint")
     public Result getBlueprint(int bID) {
         Map<String, Object> res = blueprintServer.getBlueprint(bID);
-//        if(res == null) { return Result.error("找不到该项目"); }
+        // if(res == null) { return Result.error("找不到该项目"); }
         return Result.success(res);
     }
 
@@ -141,22 +126,21 @@ public class BlueprintController {
     public Result saveBlueprint(HttpServletRequest request, @RequestBody String json) {
         int bID = Integer.parseInt(request.getHeader("bID"));
 
-//        String navPos = request.getParameter("navPos");
-//        String agentPos = request.getParameter("agentPos");
-//        String wallArr = request.getParameter("wallArr");
-//        String exit = request.getParameter("exit");
-//        System.out.println(json);
-
+        // String navPos = request.getParameter("navPos");
+        // String agentPos = request.getParameter("agentPos");
+        // String wallArr = request.getParameter("wallArr");
+        // String exit = request.getParameter("exit");
+        // System.out.println(json);
 
         blueprintServer.saveBlueprint(bID, json);
         return Result.success();
     }
 
-//    //创建新版本
-//    @PostMapping("/newVersion")
-//    public Result newVersion() {
-//
-//    }
+    // //创建新版本
+    // @PostMapping("/newVersion")
+    // public Result newVersion() {
+    //
+    // }
     @PostMapping("/getSize")
     public Result getSize(@RequestBody Map request) {
         int bID = Integer.parseInt((String) request.get("bID"));
@@ -185,7 +169,7 @@ public class BlueprintController {
         return Result.success(res);
     }
 
-    //获取出口列表
+    // 获取出口列表
     @PostMapping("/exit")
     public Result exit(@RequestBody Map request) {
         int bID = (int) request.get("bID");
@@ -202,7 +186,7 @@ public class BlueprintController {
         return Result.success(res);
     }
 
-    //获取出口统计信息
+    // 获取出口统计信息
     @PostMapping("/exitData")
     public Result exitData(@RequestBody Map request) {
         int bID = (int) request.get("bID");
@@ -213,9 +197,7 @@ public class BlueprintController {
         return Result.success(res);
     }
 
-
-
-    //保存副本
+    // 保存副本
     @PostMapping("/copy")
     public Result copy(@RequestBody Map request) {
         int bID = Integer.parseInt((String) request.get("bID"));

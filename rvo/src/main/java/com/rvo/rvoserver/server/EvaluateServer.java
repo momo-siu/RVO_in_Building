@@ -40,10 +40,6 @@ public interface EvaluateServer {
 
     List<List<Map<String, Integer>>> getHeatMap(int bID);
 
-    Map<String, Object> getGRD(int bID,int status, String file);
-
-    Map<String, Object> getPerGRD(int bID,int status,String file);
-
     void calDensity(int bID, List<DensityRect> rects, double scale) throws IOException;
 
     List<Double> getDensity(int bID,String fileName);

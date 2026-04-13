@@ -14,8 +14,6 @@ namespace rvocpp {
 // - replayData.txt (Java ObjectOutputStream格式)
 // - heatMap.rvo (Java ObjectOutputStream格式)
 // - exitStatistic.txt (文本格式)
-// - grd, preGrd (Java ObjectOutputStream格式)
 // - Time.txt (文本格式)
 
 } // namespace rvocpp
-

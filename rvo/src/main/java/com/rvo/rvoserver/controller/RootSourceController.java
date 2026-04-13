@@ -22,7 +22,7 @@ public class RootSourceController {
     @GetMapping("/source/{projectId}/{filename:.+}")
     public ResponseEntity<Resource> getSourceFileRoot(@PathVariable String projectId, @PathVariable String filename)
             throws IOException {
-        Path fileOnDisk = Paths.get(projectBase, "rvo", "source", projectId, filename);
+        Path fileOnDisk = Paths.get(projectBase, projectId, filename);
         Resource res;
         if (Files.exists(fileOnDisk) && Files.isReadable(fileOnDisk)) {
             res = new UrlResource(fileOnDisk.toUri());

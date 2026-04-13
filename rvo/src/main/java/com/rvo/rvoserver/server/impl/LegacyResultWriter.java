@@ -64,7 +64,6 @@ class LegacyResultWriter {
         writeReplayData(outputDir, raw);
         writeTimeFile(outputDir, raw);
         writeExitFile(outputDir, raw);
-        writeGrdFiles(outputDir, raw);
         writeHeatMap(outputDir, raw);
         writeExitStatistic(outputDir, raw, exitIndexMap);
     }
@@ -151,49 +150,6 @@ class LegacyResultWriter {
             oos.writeObject(exitCount);
         } catch (IOException e) {
             log.warn("Failed to write exit.txt at {}", exitPath, e);
-        }
-    }
-
-    private void writeGrdFiles(Path outputDir, SimulationRaw raw) {
-        int frameCount = raw.frames == null ? 0 : raw.frames.size();
-
-        List<Double> cumulative = new ArrayList<>();
-        double totalDose = 0.0;
-        if (frameCount == 0) {
-            cumulative.add(0.0);
-        } else {
-            for (Frame frame : raw.frames) {
-                totalDose += frame.agents == null ? 0.0 : frame.agents.size() * 0.001;
-                cumulative.add(totalDose);
-            }
-        }
-
-        Path grdPath = outputDir.resolve("grd");
-        try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(grdPath))) {
-            oos.writeObject(cumulative);
-        } catch (IOException e) {
-            log.warn("Failed to write grd file at {}", grdPath, e);
-        }
-
-        List<Double> perPerson = new ArrayList<>();
-        int agentCount = raw.config != null && raw.config.agentCount != null ? raw.config.agentCount : 0;
-        if (agentCount == 0 && raw.frames != null && !raw.frames.isEmpty()) {
-            Frame firstFrame = raw.frames.get(0);
-            agentCount = firstFrame.agents == null ? 0 : firstFrame.agents.size();
-        }
-        if (agentCount <= 0) {
-            perPerson.add(0.0);
-        } else {
-            for (int i = 0; i < agentCount; i++) {
-                perPerson.add(0.0);
-            }
-        }
-
-        Path preGrdPath = outputDir.resolve("preGrd");
-        try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(preGrdPath))) {
-            oos.writeObject(perPerson);
-        } catch (IOException e) {
-            log.warn("Failed to write preGrd file at {}", preGrdPath, e);
         }
     }
 
