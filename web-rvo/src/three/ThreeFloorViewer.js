@@ -25,6 +25,9 @@ export class ThreeFloorViewer {
     this.mapHeight = options.mapHeight || 60;
     this.agentStyle = this.normalizeAgentStyle(options.agentStyle);
     this.agentVisualConfig = this.normalizeAgentVisualConfig(options.agentVisualConfig);
+    this.occlusionGrayPerLayer = Number.isFinite(Number(options.occlusionGrayPerLayer)) ? Number(options.occlusionGrayPerLayer) : 0.15;
+    this.occlusionGrayMax = Number.isFinite(Number(options.occlusionGrayMax)) ? Number(options.occlusionGrayMax) : 0.9;
+    this._cachedFloorIds = [];
     this.onZoomChange = null;
   }
 
@@ -59,6 +62,7 @@ export class ThreeFloorViewer {
             const currentDist = this.camera.position.distanceTo(this.controls.target);
             this.onZoomChange(initialDist / currentDist);
         }
+        this.applyOcclusionShading({ agentsOnly: false });
     });
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.65);
@@ -199,6 +203,11 @@ export class ThreeFloorViewer {
     const floorIds = new Set();
     rooms.forEach(r => floorIds.add(Number(r.floorId || 0)));
     exits.forEach(e => floorIds.add(Number(e.floorId || 0)));
+    (peos || []).forEach((g) => {
+      const fid = Number(g && g.floorId);
+      if (Number.isFinite(fid)) floorIds.add(fid);
+    });
+    this._cachedFloorIds = Array.from(floorIds).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
     
     floorIds.forEach(fid => {
       // 这里的尺寸可能太小，或者 centerX/centerZ 的计算在只有部分数据时有问题
@@ -413,6 +422,81 @@ export class ThreeFloorViewer {
         setVisibility(child, onFocusFloor, onFocusFloor ? visibleOpacity : dimOpacity);
       });
     }
+    this.applyOcclusionShading({ agentsOnly: false });
+  }
+
+  getFloorOcclusionLayers(floorId) {
+    if (!Number.isFinite(Number(floorId)) || !this.camera) return 0;
+    const fid = Number(floorId);
+    const camY = Number(this.camera.position.y);
+    if (!Number.isFinite(camY)) return 0;
+    const floorY = fid * this.floorHeight;
+    const floors = Array.isArray(this._cachedFloorIds) ? this._cachedFloorIds : [];
+    if (floors.length === 0) return 0;
+
+    let count = 0;
+    if (camY >= floorY) {
+      for (let i = 0; i < floors.length; i++) {
+        const f = Number(floors[i]);
+        if (!Number.isFinite(f)) continue;
+        const fy = f * this.floorHeight;
+        if (f > fid && fy <= camY) count++;
+      }
+    } else {
+      for (let i = 0; i < floors.length; i++) {
+        const f = Number(floors[i]);
+        if (!Number.isFinite(f)) continue;
+        const fy = f * this.floorHeight;
+        if (f < fid && fy >= camY) count++;
+      }
+    }
+    return count;
+  }
+
+  applyMaterialGray(material, grayFactor) {
+    if (!material || !material.color) return;
+    if (!material.userData) material.userData = {};
+    if (material.userData.baseColor == null) {
+      material.userData.baseColor = material.color.getHex();
+    }
+    const base = new THREE.Color(material.userData.baseColor);
+    const gray = new THREE.Color(0x808080);
+    material.color.copy(base).lerp(gray, grayFactor);
+    material.needsUpdate = true;
+  }
+
+  applyGrayToObject(obj, grayFactor) {
+    if (!obj || !obj.material) return;
+    if (Array.isArray(obj.material)) {
+      obj.material.forEach((m) => this.applyMaterialGray(m, grayFactor));
+    } else {
+      this.applyMaterialGray(obj.material, grayFactor);
+    }
+  }
+
+  applyOcclusionShading({ agentsOnly = false } = {}) {
+    const perLayer = Math.max(0, Number(this.occlusionGrayPerLayer) || 0);
+    const maxGray = Math.max(0, Math.min(1, Number(this.occlusionGrayMax) || 0));
+    const calcGray = (fid) => Math.min(maxGray, this.getFloorOcclusionLayers(fid) * perLayer);
+
+    const shadeGroup = (group, skipGround = false) => {
+      if (!group) return;
+      group.traverse((child) => {
+        if (!child || !child.visible || !child.material) return;
+        if (skipGround && child.userData && child.userData.isGround) return;
+        const fid = Number(child.userData && child.userData.floorId);
+        if (!Number.isFinite(fid)) {
+          this.applyGrayToObject(child, 0);
+          return;
+        }
+        this.applyGrayToObject(child, calcGray(fid));
+      });
+    };
+
+    if (!agentsOnly) {
+      shadeGroup(this.buildingGroup, true);
+    }
+    shadeGroup(this.agentGroup, false);
   }
 
   normalizeAgentStyle(style) {
@@ -580,6 +664,7 @@ export class ThreeFloorViewer {
         const existing = this.agentTransitions.get(id);
         const shouldRestart = !existing || !existing.to || existing.to.distanceToSquared(to) > 1e-6;
         if (shouldRestart) {
+          mesh.userData.floorId = Number.isFinite(Number(mesh.userData.floorId)) ? Number(mesh.userData.floorId) : floorId;
           this.agentTransitions.set(id, {
             mesh,
             from: mesh.position.clone(),
@@ -588,7 +673,6 @@ export class ThreeFloorViewer {
             durationMs,
             toFloorId: Number.isFinite(toFloorId) ? toFloorId : floorId
           });
-          delete mesh.userData.floorId;
         }
       } else if (this.agentTransitions.has(id)) {
         const ongoing = this.agentTransitions.get(id);
@@ -597,7 +681,6 @@ export class ThreeFloorViewer {
           ongoing.to.copy(to);
           ongoing.toFloorId = floorId;
         }
-        delete mesh.userData.floorId;
       } else {
         this.agentTransitions.delete(id);
         mesh.userData.floorId = floorId;
@@ -626,6 +709,7 @@ export class ThreeFloorViewer {
     }
 
     this.applyFloorFilterToScene();
+    this.applyOcclusionShading({ agentsOnly: true });
   }
 
   createFloorPlate(walls, y) {

@@ -223,6 +223,8 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           floorFilter:'all',
           onlyCurrentFloor:false,
           teleportDurationMs:1200,
+          occlusionGrayPerLayer:0.35,
+          occlusionGrayMax:0.9,
           replayAgentStyle:'cylinder',
           agentVisualConfig:{
             cylinder:{
@@ -1677,7 +1679,9 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
             mapWidth,
             mapHeight,
             agentStyle: this.resolveThreeAgentStyle(),
-            agentVisualConfig: this.view3D.agentVisualConfig
+            agentVisualConfig: this.view3D.agentVisualConfig,
+            occlusionGrayPerLayer: this.view3D.occlusionGrayPerLayer,
+            occlusionGrayMax: this.view3D.occlusionGrayMax
           });
           this.threeViewer.onZoomChange = (zoom) => {
             this.zoomLabel = `${zoom.toFixed(2)}x`;
@@ -1685,6 +1689,8 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           this.threeViewer.init(container);
           this.$nextTick(() => this.applyFloorFilter());
         } else {
+          this.threeViewer.occlusionGrayPerLayer = Number(this.view3D.occlusionGrayPerLayer) || 0.15;
+          this.threeViewer.occlusionGrayMax = Number(this.view3D.occlusionGrayMax) || 0.9;
           this.threeViewer.resize();
           this.applyThreeAgentStyle(false);
         }
