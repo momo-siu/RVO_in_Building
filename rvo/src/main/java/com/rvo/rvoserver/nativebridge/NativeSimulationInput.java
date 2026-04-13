@@ -17,7 +17,6 @@ public class NativeSimulationInput {
         public int bID;
         public double scale;
         public int status;
-        public int weight;
         public double k;
         public double imgX0;
         public double imgY0;
@@ -33,6 +32,9 @@ public class NativeSimulationInput {
         public double velocity;
         public double startTime;
         public int exitId;
+        public int floorId = 0;
+        public int targetFloorId = 0;
+        public double transferRemainingTime = 0.0;
         public int graphNodeIndex = -1;
         public List<Integer> roomIds = new ArrayList<>();
         public List<Double> waypointXs = new ArrayList<>();
@@ -45,6 +47,7 @@ public class NativeSimulationInput {
         public double y1;
         public double x2;
         public double y2;
+        public int floorId = 0;
     }
 
     public static class NativeExit {
@@ -53,6 +56,7 @@ public class NativeSimulationInput {
         public double y0;
         public double x1;
         public double y1;
+        public int floorId = 0;
         public int capacity;
         public String name;
     }
@@ -61,17 +65,21 @@ public class NativeSimulationInput {
         public double x;
         public double y;
         public int state;
+        public int floorId = 0;
+        public int toFloorId = 0;
         public List<Integer> roomIds = new ArrayList<>();
     }
 
     public static class NativeRoom {
         public int rid;
+        public int floorId = 0;
         public int peopleCount;
         public List<NativePoint> walls = new ArrayList<>();
     }
 
     public static class NativePeopleGroup {
         public int id;
+        public int floorId = 0;
         public int peopleCount;
         public List<NativePoint> walls = new ArrayList<>();
     }

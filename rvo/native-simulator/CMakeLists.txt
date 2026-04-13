@@ -27,7 +27,7 @@ target_include_directories(native_rvo_simulator
 target_compile_definitions(native_rvo_simulator PRIVATE RVO_NATIVE_BUILD)
 
 if (MSVC)
-    target_compile_options(native_rvo_simulator PRIVATE /W4 /EHsc /bigobj)
+    target_compile_options(native_rvo_simulator PRIVATE /W4 /EHsc /bigobj /utf-8)
 else()
     target_compile_options(native_rvo_simulator PRIVATE -Wall -Wextra -pedantic)
 endif()
@@ -41,6 +41,10 @@ add_library(rvo_sim_core STATIC
 
 target_include_directories(rvo_sim_core PUBLIC ${SIMULATOR_ROOT}/include ${SIMULATOR_ROOT}/third_party)
 
+if (MSVC)
+    target_compile_options(rvo_sim_core PRIVATE /utf-8)
+endif()
+
 add_library(native_rvo_interface SHARED src/native_interface.cpp)
 
 target_include_directories(native_rvo_interface
@@ -49,6 +53,10 @@ target_include_directories(native_rvo_interface
         ${SIMULATOR_ROOT}/third_party
         ${JNI_INCLUDE_DIRS}
 )
+
+if (MSVC)
+    target_compile_options(native_rvo_interface PRIVATE /utf-8)
+endif()
 
 target_link_libraries(native_rvo_interface PRIVATE rvo_sim_core ${JNI_LIBRARIES})
 

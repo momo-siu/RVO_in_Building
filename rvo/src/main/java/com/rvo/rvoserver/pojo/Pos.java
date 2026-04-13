@@ -16,6 +16,8 @@ public class Pos {
     public double x;
     public double y;
     public int state; // 是在房内还是房外0在房内，1在房外,3 表示无用
+    public int floorId = 0; // 楼层编号，默认0层
+    public Integer toFloorId = 0;
     public ArrayList<Integer> room_id = new ArrayList<>(); // 所在房间的编号
     public ArrayList<Integer> gotList = new ArrayList<>(); // 已经走过的导航点
     public Integer navIndex = null; // 当前点在导航点列表中的索引，-2表示出口
@@ -25,6 +27,7 @@ public class Pos {
         this.x = x;
         this.y = y;
         this.state = 3;
+        this.floorId = 0;
         this.room_id = new ArrayList<>();
         this.gotList = new ArrayList<>();
         this.navIndex = null;
@@ -34,6 +37,7 @@ public class Pos {
         this.x = x;
         this.y = y;
         this.state = state;
+        this.floorId = 0;
         this.room_id = new ArrayList<>();
         this.gotList = new ArrayList<>();
     }
@@ -41,6 +45,7 @@ public class Pos {
         this.x = x;
         this.y = y;
         this.state = state;
+        this.floorId = 0;
         this.room_id = room_id;
         this.gotList = new ArrayList<>();
     }
@@ -49,6 +54,7 @@ public class Pos {
         this.x = x;
         this.y = y;
         this.state = 3;
+        this.floorId = 0;
         this.room_id = new ArrayList<>();
         this.gotList = gotList;
         this.navIndex = null;

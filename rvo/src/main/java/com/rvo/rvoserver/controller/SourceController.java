@@ -12,7 +12,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -121,6 +123,25 @@ public class SourceController {
             ret.put("msg", e.getMessage());
             return ResponseEntity.status(500).body(ret);
         }
+    }
+
+    // 新增：获取项目下所有已模拟方案的名称（目录名）
+    @GetMapping("/project/listMethods/{projectId}")
+    public ResponseEntity<List<String>> listMethods(@PathVariable String projectId) {
+        Path projectDir = Paths.get(projectBase, "rvo", "source", projectId);
+        List<String> methods = new ArrayList<>();
+        if (Files.exists(projectDir) && Files.isDirectory(projectDir)) {
+            try (Stream<Path> stream = Files.walk(projectDir, 2)) {
+                stream.filter(Files::isDirectory)
+                        .filter(p -> Files.exists(p.resolve("output.json")) || Files.exists(p.resolve("result.rvo")))
+                        .map(p -> projectDir.relativize(p).toString().replace("\\", "/"))
+                        .filter(name -> !name.isEmpty())
+                        .forEach(methods::add);
+            } catch (IOException e) {
+                return ResponseEntity.status(500).build();
+            }
+        }
+        return ResponseEntity.ok(methods);
     }
 
     // 工具：把 srcDir 下内容移动到 destDir（存在同名文件则覆盖）

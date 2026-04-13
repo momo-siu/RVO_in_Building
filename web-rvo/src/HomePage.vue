@@ -46,10 +46,18 @@
                 >
                     <div class="project-image">
                         <el-image
+                            v-if="project.background"
                             :src="rip + project.background"
                             fit="cover"
                             class="project-bg-image"
                         ></el-image>
+                        <div v-else class="project-placeholder">
+                            <div class="placeholder-icon">场景</div>
+                            <div class="placeholder-text">
+                                <div class="placeholder-title">{{ project.name || '未命名项目' }}</div>
+                                <div class="placeholder-sub">尚未上传底图</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="project-info">
                         <h3 class="project-name">{{ project.name }}</h3>
@@ -99,31 +107,28 @@
             >
             <div class="dialog-content">
                 <div class="form-item">
-                    <label>项目名称：</label>
+                    <label><span style="color: red;">*</span>项目名称：</label>
                     <el-input v-model="name" placeholder="请输入项目名称"></el-input>
                 </div>
                 <div class="form-item">
-                    <label>项目介绍：</label>
+                    <label><span style="color: red;">*</span>项目介绍：</label>
                     <el-input v-model="description" type="textarea" placeholder="请输入项目介绍"></el-input>
                 </div>
                 <div class="form-item">
-                    <label>外场场址：</label>
+                    <label><span style="color: red;">*</span>外场场址：</label>
                     <el-input v-model="addr" placeholder="请输入外场场址"></el-input>
+                </div>
+                <div class="form-item">
+                    <label><span style="color: red;">*</span>地图大小(m)：</label>
+                    <div style="display: flex; gap: 10px; flex: 1;">
+                        <el-input-number v-model="mapWidth" :min="1" placeholder="长度(x)"></el-input-number>
+                        <el-input-number v-model="mapHeight" :min="1" placeholder="宽度(y)"></el-input-number>
+                    </div>
                 </div>
                 <div class="form-item">
                     <label>底图导入：</label>
                     <el-button v-if="!isTrue" type="success" @click="changeBack()">上传底图</el-button>
                     <el-button v-if="isTrue" type="warning" @click="deleteBack()">清除底图</el-button>
-                </div>
-                <div class="form-item">
-                    <label>配置文件：</label>
-                    <el-button v-if="isTrue_2==false" type="success" @click="changeCon()">上传配置</el-button>
-                    <el-button v-if="isTrue_2==true" type="warning" @click="deleteCon()">清除配置</el-button>
-                </div>
-                <div class="form-item">
-                    <label>GRD文件：</label>
-                    <el-button v-if="isTrue_3==false" type="success" @click="changeGRD()">上传GRD文件</el-button>
-                    <el-button v-if="isTrue_3==true" type="warning" @click="deleteGRD()">清除GRD文件</el-button>
                 </div>
             </div>
             
@@ -248,6 +253,42 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.project-placeholder {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: radial-gradient(circle at top left, #e0f2fe, #f1f5f9);
+    color: #0f172a;
+}
+.placeholder-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(15,23,42,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    margin-right: 10px;
+}
+.placeholder-text {
+    display: flex;
+    flex-direction: column;
+}
+.placeholder-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+}
+.placeholder-sub {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
 }
 
 /* 项目信息区域 */
@@ -401,6 +442,8 @@ body {
                 name:'',
                 description:'',
                 addr:'',
+                mapWidth: 100,
+                mapHeight: 60,
                 options: [],
                 opt: [],
                 value: '',
@@ -409,7 +452,6 @@ body {
 
                 isTrue:false,
                 isTrue_2:false,
-                isTrue_3:false,
                 color: this.table_color,
                 hoveredProject: null,
                 searchId: '',
@@ -489,27 +531,11 @@ body {
                 this.formdata.delete("config");
                 this.isTrue_2=false;
             },
-            deleteGRD(){
-                this.formdata.delete("files");
-                this.isTrue_3=false;
-            },
             upBack(){
                 let fu = document.getElementById("open_1");
                 if (fu == null) return;
                 this.formdata.append('background', fu.files[0]);
                 this.isTrue=true;
-            },
-            upGRD(){
-                let fu = document.getElementById("open_3");
-                if (fu == null) return;
-                let da=[];
-                for(let i = 0;i<12;i++){
-                    this.formdata.append('files', fu.files[i]);
-                }
-                // alert(1)
-                console.log(da)
-                console.log(this.formdata)
-                this.isTrue_3=true;
             },
             upCon(){
                 let fu = document.getElementById("open_2");
@@ -528,19 +554,11 @@ body {
                     this.loading=false;
                     return;
                 }
-                if(!this.isTrue|| !this.isTrue_2 || !this.isTrue_3){
-                    this.$notify({
-                        title: '警告',
-                        message: '请上传底图、参数与GRD文件',
-                        type: 'warning'
-                    });
-                    this.loading=false;
-                    return;
-                }
                 this.formdata.append('name', this.name);
                 this.formdata.append('description', this.description);
                 this.formdata.append('addr', this.addr);
-
+                this.formdata.append('mapWidth', this.mapWidth);
+                this.formdata.append('mapHeight', this.mapHeight);
 
                 axios({
                     url: restweburl+'createBlueprint',
@@ -554,9 +572,10 @@ body {
                     this.formdata.delete("name");
                     this.formdata.delete("description");
                     this.formdata.delete("addr");
+                    this.formdata.delete("mapWidth");
+                    this.formdata.delete("mapHeight");
                     this.deleteCon();
                     this.deleteBack();
-                    this.deleteGRD();
                     if(res.data.msg=="success"){
                         this.loading=false;
                         this.dialogVisible = false;
@@ -608,9 +627,10 @@ body {
                         this.formdata.delete("name");
                         this.formdata.delete("description");
                         this.formdata.delete("addr");
+                        this.formdata.delete("mapWidth");
+                        this.formdata.delete("mapHeight");
                         this.deleteCon();
                         this.deleteBack();
-                        this.deleteGRD();
                     }
                     this.name="";
                     this.description="";
@@ -618,9 +638,10 @@ body {
                     this.formdata.delete("name");
                     this.formdata.delete("description");
                     this.formdata.delete("addr");
+                    this.formdata.delete("mapWidth");
+                    this.formdata.delete("mapHeight");
                     this.deleteCon();
                     this.deleteBack();
-                    this.deleteGRD();
                 });
             },
             handleClick(row){

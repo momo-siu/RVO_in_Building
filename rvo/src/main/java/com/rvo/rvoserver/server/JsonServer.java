@@ -20,7 +20,7 @@ public interface JsonServer {
  * @param bID  项目id
  * @param matrixRoomToExit  房间集合点权重矩阵
  * @param rooms  房间信息
- * @param exits  集合点信息
+     * @param exits  参与线性规划的终点集合点信息（当前仅包含 F1 集合点）
  * {@code @author} Jia
  * {@code @date} 2024/9/2 9:51
  */

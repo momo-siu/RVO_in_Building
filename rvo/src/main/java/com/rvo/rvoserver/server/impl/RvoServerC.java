@@ -26,14 +26,15 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * RvoServerC is now a thin adapter that forwards all evacuation simulations to the C++
- * implementation. The legacy Java simulation code has been removed to avoid divergence.
+ * RvoServerC is now a thin adapter that forwards all evacuation simulations to
+ * the C++
+ * implementation. The legacy Java simulation code has been removed to avoid
+ * divergence.
  */
 @Slf4j
 @Component
@@ -68,27 +69,27 @@ public class RvoServerC implements RvoServer {
 
     @Override
     @Async
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void calculatePathWithNav(int bID,
-                                     List<Agent> agents,
-                                     List<Obstacle> obstacles,
-                                     List<Exit> exits,
-                                     List<Pos> navPoints,
-                                     double scale,
-                                     List<HashMap> rooms,
-                                     List<HashMap> peosList,
-                                     int status,
-                                     int weight,
-                                     double k,
-                                     String fileName,
-                                     NavGrid navGrid,
-                                     List<Exit> exitsAll,
-                                     double imgX0,
-                                     double imgY0,
-                                     double sT) throws IOException {
+            List<Agent> agents,
+            List<Obstacle> obstacles,
+            List<Exit> exits,
+            List<Pos> navPoints,
+            double scale,
+            List<HashMap> rooms,
+            List<HashMap> peosList,
+            int status,
+            double k,
+            String fileName,
+            NavGrid navGrid,
+            List<Exit> exitsAll,
+            double imgX0,
+            double imgY0,
+            double sT) throws IOException {
 
         if (nativeRvoSimulationService == null) {
-            throw new IllegalStateException("NativeRvoSimulationService bean is not initialized. Please ensure the native simulator is configured.");
+            throw new IllegalStateException(
+                    "NativeRvoSimulationService bean is not initialized. Please ensure the native simulator is configured.");
         }
 
         mutex = 1;
@@ -106,13 +107,11 @@ public class RvoServerC implements RvoServer {
                 (List<HashMap<String, Object>>) (List<?>) rooms,
                 (List<HashMap<String, Object>>) (List<?>) peosList,
                 status,
-                weight,
                 k,
                 fileName,
                 imgX0,
                 imgY0,
-                sT
-        );
+                sT);
 
         try {
             boolean success = nativeRvoSimulationService.runSimulation(bID, inputData, fileName);
@@ -134,59 +133,52 @@ public class RvoServerC implements RvoServer {
     }
 
     private NativeSimulationInput prepareNativeInput(int bID,
-                                                     List<Agent> agents,
-                                                     List<Obstacle> obstacles,
-                                                     List<Exit> exits,
-                                                     List<Pos> navPoints,
-                                                     double scale,
-                                                     List<HashMap<String, Object>> rooms,
-                                                     List<HashMap<String, Object>> peosList,
-                                                     int status,
-                                                     int weight,
-                                                     double k,
-                                                     String fileName,
-                                                     double imgX0,
-                                                     double imgY0,
-                                                     double sT) {
-        NativeSimulationInput input = new NativeSimulationInput();
-        NativeSimulationConfig config = input.config;
-        config.bID = bID;
-        config.scale = scale;
-        config.status = status;
-        config.weight = weight;
-        config.k = k;
-        config.fileName = fileName;
-        config.imgX0 = imgX0;
-        config.imgY0 = imgY0;
-        config.sT = sT;
+            List<Agent> agents,
+            List<Obstacle> obstacles,
+            List<Exit> exits,
+            List<Pos> navPoints,
+            double scale,
+            List<HashMap<String, Object>> rooms,
+            List<HashMap<String, Object>> peosList,
+            int status,
+            double k,
+            String fileName,
+            double imgX0,
+            double imgY0,
+            double sT) {
 
+        NativeSimulationInput input = new NativeSimulationInput();
+        input.config.bID = bID;
+        input.config.scale = scale;
+        input.config.status = status;
+        input.config.k = k;
+        input.config.imgX0 = imgX0;
+        input.config.imgY0 = imgY0;
+        input.config.sT = sT;
+        input.config.fileName = fileName;
+
+        // Populate agents
         double minStartTime = Double.POSITIVE_INFINITY;
         double maxStartTime = Double.NEGATIVE_INFINITY;
         int zeroVelocityCount = 0;
-        Double sampleVel = null;
-        Pos samplePos = null;
+        int samplePos = 0;
+        int sampleVel = 0;
 
         for (Agent agent : agents) {
             NativeAgent nativeAgent = new NativeAgent();
-            nativeAgent.id = agent.getId();
+            nativeAgent.id = (int) agent.getId();
             nativeAgent.x = agent.getPos().getX();
             nativeAgent.y = agent.getPos().getY();
             nativeAgent.velocity = agent.getVel();
             nativeAgent.startTime = agent.getSTime();
-            nativeAgent.exitId = agent.getExitId();
-            minStartTime = Math.min(minStartTime, nativeAgent.startTime);
-            maxStartTime = Math.max(maxStartTime, nativeAgent.startTime);
-            if (nativeAgent.velocity <= 0.0) {
-                zeroVelocityCount++;
-            } else if (sampleVel == null) {
-                sampleVel = nativeAgent.velocity;
-                samplePos = agent.getPos();
-            }
+            nativeAgent.exitId = (int) agent.getExitId();
+            nativeAgent.floorId = agent.getPos() != null ? agent.getPos().getFloorId() : 0;
+            nativeAgent.targetFloorId = agent.getTargetFloorId();
+            nativeAgent.transferRemainingTime = agent.getTransferRemainingTime();
+            nativeAgent.graphNodeIndex = agent.getGraphNodeIndex();
+
             if (agent.getRoom_id() != null) {
                 nativeAgent.roomIds.addAll(agent.getRoom_id());
-            }
-            if (agent.getGraphNodeIndex() != null) {
-                nativeAgent.graphNodeIndex = agent.getGraphNodeIndex();
             }
             if (agent.getWaypointXs() != null) {
                 nativeAgent.waypointXs.addAll(agent.getWaypointXs());
@@ -204,19 +196,25 @@ public class RvoServerC implements RvoServer {
             nativeObstacle.y1 = obstacle.getA().getY();
             nativeObstacle.x2 = obstacle.getB().getX();
             nativeObstacle.y2 = obstacle.getB().getY();
+            nativeObstacle.floorId = obstacle.getA() != null ? obstacle.getA().getFloorId() : 0;
             input.obstacles.add(nativeObstacle);
         }
 
+        int exitIndex = 0;
         for (Exit exit : exits) {
             NativeSimulationInput.NativeExit nativeExit = new NativeSimulationInput.NativeExit();
-            nativeExit.id = exit.getId();
+            nativeExit.id = exitIndex;
             nativeExit.x0 = exit.getLt().getX();
             nativeExit.y0 = exit.getLt().getY();
             nativeExit.x1 = exit.getRd().getX();
             nativeExit.y1 = exit.getRd().getY();
+            nativeExit.floorId = exit.getLt() != null ? exit.getLt().getFloorId() : 0;
             nativeExit.capacity = exit.getNumOfPerson();
-            nativeExit.name = exit.getExitName();
+            String key = exit.getExitKey();
+            nativeExit.name = (key != null && !key.isEmpty()) ? key
+                    : (exit.getExitName() != null ? exit.getExitName() : "");
             input.exits.add(nativeExit);
+            exitIndex++;
         }
 
         for (Pos navPoint : navPoints) {
@@ -224,6 +222,9 @@ public class RvoServerC implements RvoServer {
             nativeNavPoint.x = navPoint.getX();
             nativeNavPoint.y = navPoint.getY();
             nativeNavPoint.state = navPoint.getState();
+            nativeNavPoint.floorId = navPoint.getFloorId();
+            nativeNavPoint.toFloorId = navPoint.getToFloorId() == null ? navPoint.getFloorId()
+                    : navPoint.getToFloorId();
             if (navPoint.getRoom_id() != null) {
                 nativeNavPoint.roomIds.addAll(navPoint.getRoom_id());
             }
@@ -233,16 +234,13 @@ public class RvoServerC implements RvoServer {
         convertRooms(rooms, input.rooms);
         convertPeopleGroups(peosList, input.peopleGroups);
 
-        log.info("Native input prepared: agents={}, obstacles={}, exits={}, navPoints={}, startTime[min={}, max={}], zeroVelocityCount={}, samplePos={}, sampleVel={}",
+        log.info("Native input prepared: agents={}, obstacles={}, exits={}, navPoints={}, startTime[min={}, max={}]",
                 input.agents.size(),
                 input.obstacles.size(),
                 input.exits.size(),
                 input.navPoints.size(),
                 minStartTime == Double.POSITIVE_INFINITY ? null : minStartTime,
-                maxStartTime == Double.NEGATIVE_INFINITY ? null : maxStartTime,
-                zeroVelocityCount,
-                samplePos,
-                sampleVel);
+                maxStartTime == Double.NEGATIVE_INFINITY ? null : maxStartTime);
 
         return input;
     }
@@ -254,6 +252,7 @@ public class RvoServerC implements RvoServer {
         for (HashMap<String, Object> room : rooms) {
             NativeRoom nativeRoom = new NativeRoom();
             nativeRoom.rid = getInt(room.get("rid"));
+            nativeRoom.floorId = getInt(room.get("floorId"));
             @SuppressWarnings("unchecked")
             List<HashMap<String, Object>> people = (List<HashMap<String, Object>>) room.get("peos");
             nativeRoom.peopleCount = people != null ? people.size() : 0;
@@ -284,6 +283,7 @@ public class RvoServerC implements RvoServer {
             } else {
                 nativeGroup.id = getInt(group.get("id"));
             }
+            nativeGroup.floorId = getInt(group.get("floorId"));
             @SuppressWarnings("unchecked")
             List<HashMap<String, Object>> people = (List<HashMap<String, Object>>) group.get("peos");
             nativeGroup.peopleCount = people != null ? people.size() : 0;
@@ -300,6 +300,16 @@ public class RvoServerC implements RvoServer {
             }
             target.add(nativeGroup);
         }
+    }
+
+    private int resolveFloorId(Integer floorId, Pos pos) {
+        if (floorId != null) {
+            return floorId;
+        }
+        if (pos != null) {
+            return pos.getFloorId();
+        }
+        return 0;
     }
 
     private int getInt(Object value) {
@@ -327,5 +337,9 @@ public class RvoServerC implements RvoServer {
         }
         return null;
     }
-}
 
+    private double getDouble(Object value, double defaultValue) {
+        Double parsed = toDouble(value);
+        return parsed == null ? defaultValue : parsed;
+    }
+}

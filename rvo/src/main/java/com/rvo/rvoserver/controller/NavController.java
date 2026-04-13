@@ -1,6 +1,7 @@
 package com.rvo.rvoserver.controller;
 
 import com.rvo.rvoserver.pojo.*;
+import com.rvo.rvoserver.utils.AssemblyExitId;
 import org.apache.commons.math3.analysis.function.Max;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,8 +29,11 @@ public class NavController {
         List<Pos> points = new ArrayList<>();
         for (int i = 0; i < navPos.size(); i++) {
             int state = 1;
+            int navFloorId = navPos.get(i).get("floorId") != null
+                    ? ((Number) navPos.get(i).get("floorId")).intValue() : 0;
             ArrayList<Integer> room_id = new ArrayList<>();
             Pos temp1 = new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue());
+            temp1.setFloorId(navFloorId);
             for(int j = 0; j < rooms.size();j++){
                 List<HashMap> walls = (List<HashMap>) rooms.get(j).get("walls");
                 ArrayList<Pos> temp_points = new ArrayList<Pos>();
@@ -44,7 +48,9 @@ public class NavController {
                     room_id.add(j);
                 }
             }
-            points.add(new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue(), state, room_id));
+            Pos navP = new Pos(((Number) navPos.get(i).get("x")).doubleValue(), ((Number) navPos.get(i).get("y")).doubleValue(), state, room_id);
+            navP.setFloorId(navFloorId);
+            points.add(navP);
         }
 
         List<Obstacle> obstacles = new ArrayList<>();
@@ -65,16 +71,78 @@ public class NavController {
                 obstacles.add(new Obstacle(obstacles.size() + 1, A, B));
             }
         }
-        List<Exit> exits = new ArrayList<>();
-        int out_num = 0;
+        List<Exit> exitsRaw = new ArrayList<>();
         for(int i = 0; i < exitLists.size(); i++) {
             Pos exitA = new Pos(((Number) exitLists.get(i).get("x0")).doubleValue(), ((Number) exitLists.get(i).get("y0")).doubleValue());
             Pos exitB = new Pos(((Number) exitLists.get(i).get("x1")).doubleValue(), ((Number) exitLists.get(i).get("y2")).doubleValue());
+            String exitKey = exitLists.get(i).get("id") != null ? exitLists.get(i).get("id").toString().trim() : "";
+            AssemblyExitId parsed = AssemblyExitId.parse(exitKey);
+            int exitFloorId = exitLists.get(i).get("floorId") != null
+                    ? ((Number) exitLists.get(i).get("floorId")).intValue() : parsed.floorInKey;
+            if (parsed.floorInKey != 0) {
+                exitFloorId = parsed.floorInKey;
+            }
+            exitA.setFloorId(exitFloorId);
+            exitB.setFloorId(exitFloorId);
             int numOfPerson = ((Number) exitLists.get(i).get("peoNum")).intValue();
             String exitName = (String)  exitLists.get(i).get("name");
-            Exit exit = new Exit((long) i, exitA, exitB, numOfPerson,exitName);
-            exits.add(exit);
-            out_num += Integer.parseInt(exitLists.get(i).get("peoNum").toString());
+            exitsRaw.add(new Exit((long) i, exitKey, exitA, exitB, numOfPerson, exitName));
+        }
+        List<Exit> exits = new ArrayList<>();
+        for (Exit e : exitsRaw) {
+            int ef = e.getLt() != null ? e.getLt().getFloorId() : 0;
+            AssemblyExitId parsed = AssemblyExitId.parse(e.getExitKey());
+            // 只要是合法集合点，就参与导航图构建
+            if (AssemblyExitId.isUsableAsGraphNode(ef, parsed)) {
+                exits.add(e);
+            }
+        }
+        if (exits.isEmpty()) {
+            return Result.error("没有可用于疏散的集合点（非首层集合点需填写传送目标）");
+        }
+        int out_num = 0;
+        for (Exit e : exits) {
+            out_num += e.getNumOfPerson();
+        }
+        for (int ei = 0; ei < exits.size(); ei++) {
+            exits.get(ei).setId((long) ei);
+        }
+
+        Map<Integer, Integer> peoplePerFloor = new HashMap<>();
+        for (int ri = 0; ri < rooms.size(); ri++) {
+            int fid = rooms.get(ri).get("floorId") != null
+                    ? ((Number) rooms.get(ri).get("floorId")).intValue() : 0;
+            List<HashMap> peos = (List<HashMap>) rooms.get(ri).get("peos");
+            int n = peos != null ? peos.size() : 0;
+            if (n > 0) {
+                peoplePerFloor.merge(fid, n, Integer::sum);
+            }
+        }
+        for (int pi = 0; pi < peosList.size(); pi++) {
+            int fid = peosList.get(pi).get("floorId") != null
+                    ? ((Number) peosList.get(pi).get("floorId")).intValue() : 0;
+            List<HashMap> peos = (List<HashMap>) peosList.get(pi).get("peos");
+            int n = peos != null ? peos.size() : 0;
+            if (n > 0) {
+                peoplePerFloor.merge(fid, n, Integer::sum);
+            }
+        }
+        for (Map.Entry<Integer, Integer> pe : peoplePerFloor.entrySet()) {
+            if (pe.getKey() == 0 || pe.getValue() == null || pe.getValue() <= 0) {
+                continue;
+            }
+            boolean hasExitOnFloor = false;
+            for (Exit ex : exits) {
+                int ef = ex.getLt() != null ? ex.getLt().getFloorId() : 0;
+                if (ef == pe.getKey()) {
+                    hasExitOnFloor = true;
+                    break;
+                }
+            }
+            if (!hasExitOnFloor) {
+                String floorName = pe.getKey() > 0 ? "F" + (pe.getKey() + 1) : "B" + Math.abs(pe.getKey());
+                return Result.error("楼层 " + floorName + " 有人员但无可用集合点（请为非首层配置带传送目标的集合点）");
+            }
         }
 
         NavGrid navGrid = new NavGrid(points, obstacles, exits,rooms, peosList);
