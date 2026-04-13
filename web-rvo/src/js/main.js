@@ -222,14 +222,14 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           floorHeight:150,
           floorFilter:'all',
           onlyCurrentFloor:false,
-          teleportDurationMs:1200,
+          teleportDurationMs:2000,
           occlusionGrayPerLayer:0.25,
           occlusionGrayMax:0.9,
           replayAgentStyle:'cylinder',
           agentVisualConfig:{
             cylinder:{
-              radius:0.5,
-              height:3.6,
+              radius:2,
+              height:6,
               radialSegments:10
             },
             capsule:{
@@ -1647,7 +1647,7 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
         const cfg = this.view3D && this.view3D.agentVisualConfig ? this.view3D.agentVisualConfig : null;
         if (!cfg || !cfg.cylinder) return;
         cfg.cylinder.radius = Math.min(2, Math.max(0.05, Number(cfg.cylinder.radius) || 0.18));
-        cfg.cylinder.height = Math.min(5, Math.max(0.1, Number(cfg.cylinder.height) || 0.8));
+        cfg.cylinder.height = Math.min(6, Math.max(0.1, Number(cfg.cylinder.height) || 0.8));
         cfg.cylinder.radialSegments = Math.min(32, Math.max(3, Math.round(Number(cfg.cylinder.radialSegments) || 10)));
         this.applyThreeAgentStyle(true);
       },
@@ -2008,20 +2008,11 @@ import { ThreeFloorViewer } from '../three/ThreeFloorViewer';
           return Math.min.apply(null, roomHitFloors.map((v) => Number(v) || 0));
         }
 
-        let bestFloor = Number.isFinite(prevFloor) ? prevFloor : 0;
+        // If no explicit geometric evidence is found, keep previous floor assignment.
+        // This avoids random cross-floor flicker when floors overlap in 2D projection.
+        if (Number.isFinite(prevFloor)) return prevFloor;
+        let bestFloor = 0;
         let bestD2 = Infinity;
-        if (Number.isFinite(prevFloor)) {
-          state.exits.forEach((e) => {
-            if (Number(e.floorId) !== prevFloor) return;
-            const dx = px - e.center.x;
-            const dz = pz - e.center.z;
-            const d2 = dx * dx + dz * dz;
-            if (d2 < bestD2) {
-              bestD2 = d2;
-              bestFloor = prevFloor;
-            }
-          });
-        }
         state.exits.forEach((e) => {
           const dx = px - e.center.x;
           const dz = pz - e.center.z;

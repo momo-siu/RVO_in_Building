@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-04-13T13:02:38.600Z",
+  "floorConsistency": {
+    "scenarioCount": 5,
+    "frameChecks": 22,
+    "violations": 0,
+    "passRate": 100
+  },
+  "unitVisibilityPrecision": {
+    "activeFloor": 1,
+    "visibleCount": 2,
+    "hiddenCount": 1,
+    "precisionFailures": 0
+  },
+  "teleportIntegration": {
+    "total": 100,
+    "success": 100,
+    "mismatch": 0,
+    "successRate": 100,
+    "mismatchRate": 0,
+    "avgTeleportMs": 0.0006010000000000008
+  },
+  "tenCycleIntegration": {
+    "cycles": 10,
+    "totalTeleports": 1000,
+    "success": 1000,
+    "wallCross": 0,
+    "successRate": 100
+  },
+  "randomStress": {
+    "iterations": 5000,
+    "floorMismatch": 0,
+    "illegalTeleport": 0
+  },
+  "acceptance": {
+    "floorMismatchZero": true,
+    "unitVisibilityPass": true,
+    "unitPrecisionPass": true,
+    "teleportSuccess100": true,
+    "teleportMismatchZero": true,
+    "teleportLatencyLt2ms": true,
+    "tenCycleSuccess100": true,
+    "tenCycleWallCrossZero": true
+  }
+}

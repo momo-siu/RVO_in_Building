@@ -679,7 +679,6 @@ export class ThreeFloorViewer {
         const to = new THREE.Vector3(targetX, targetY, targetZ);
         if (ongoing && ongoing.to && ongoing.to.distanceToSquared(to) > 1e-6) {
           ongoing.to.copy(to);
-          ongoing.toFloorId = floorId;
         }
       } else {
         this.agentTransitions.delete(id);
