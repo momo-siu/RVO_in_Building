@@ -109,4 +109,6 @@ RVO_in_Building
 
 ## 10. 许可证与致谢
 
+感谢李东航（https://github.com/CyberWorker-Li）、唐安 （https://github.com/ATlous）的合作贡献，以及王子洋老师的悉心指导。
 
+请根据项目实际情况补充 License、第三方依赖声明与团队信息。
